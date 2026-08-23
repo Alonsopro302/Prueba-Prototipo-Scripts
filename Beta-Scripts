@@ -1360,3 +1360,16 @@ end
         end
     end)
 end)()
+
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Insert then
+        Library:ToggleUI()
+    end
+end)
+
+Library:Notify({
+    Title = "Pichigdasos Hub",
+    Content = "Presiona Insert para abrir el menu",
+    Duration = 5
+})
