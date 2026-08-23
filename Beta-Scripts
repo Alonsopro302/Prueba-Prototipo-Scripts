@@ -1,0 +1,497 @@
+-- Cargar librería Rayfield
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+-- Crear ventana principal
+local Window = Rayfield:CreateWindow({
+    Name = "Tbao Hub | Prison Life",
+    LoadingTitle = "Cargando...",
+    LoadingSubtitle = "by thaibao7444",
+    DisableRayfieldPrompts = true,
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "TbaoHub",
+        FileName = "PrisonLifeSettings"
+    }
+})
+
+-- Variables globales
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+local CurrentCamera = workspace.CurrentCamera
+
+getgenv().antivoidEnabled = false
+getgenv().antitaseEnabled = false
+getgenv().Enabled = false
+getgenv().ka = false
+getgenv().SilentAimEnabled = false
+getgenv().AimPart = "Head"
+getgenv().spamSoond = false
+getgenv().stopsounds = false
+getgenv().clickTeleportEnabled = false
+getgenv().enabled = false
+getgenv().value = 0
+getgenv().God = false
+getgenv().Noclip = false
+getgenv().InfJ = false
+getgenv().Walkspeed = 16
+getgenv().Jumppower = 50
+getgenv().loopW = false
+getgenv().loopJ = false
+getgenv().ToolESPEnabled = false
+getgenv().ESPBoxColor = Color3.fromRGB(0, 255, 0)
+getgenv().ESPTextColor = Color3.fromRGB(255, 255, 255)
+local flag = false
+local ambient = Color3.new(0, 0, 1)
+local capturedFlag = false
+local cFrameFlag = 0
+local updateCFrameResult = CFrame.new(802.439087, 126.677025, 2358.2876, -0.999427915, 0.0167412888, -0.0293896347, 0, 0.868914843, 0.494961917, 0.0338233858, 0.494678766, -0.868417561)
+local number = -10
+
+-- Funciones auxiliares
+local function updateCFrame()
+    local Char = LocalPlayer.Character
+    if Char and Char:FindFirstChild("HumanoidRootPart") then
+        Char.HumanoidRootPart.CFrame = updateCFrameResult
+    end
+end
+
+local function updateInstanceProperties()
+    if getgenv().antitaseEnabled then
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("Humanoid") then
+            local Humanoid = Char.Humanoid
+            if Humanoid.WalkSpeed == 0 then
+                Humanoid.WalkSpeed = 16
+                Humanoid.PlatformStand = false
+            end
+        end
+    end
+end
+
+function stopSound()
+    while getgenv().stopsounds do
+        for _, item in ipairs(game:GetDescendants()) do
+            if item:IsA("Sound") then item:Stop() end
+        end
+        task.wait()
+    end
+end
+
+function spamSound()
+    while getgenv().spamSoond do
+        for _, item in ipairs(game:GetDescendants()) do
+            if item:IsA("Sound") then item:Play() end
+        end
+        task.wait()
+    end
+end
+
+function killAura()
+    while getgenv().ka do
+        for _, item in ipairs(Players:GetPlayers()) do
+            if item ~= LocalPlayer and item.Character and item.Character:FindFirstChild("Humanoid") then
+                local Dist = (item.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if Dist <= 17 then
+                    for _ = 1, 25 do
+                        game.ReplicatedStorage.meleeEvent:FireServer(item)
+                    end
+                end
+            end
+        end
+        task.wait()
+    end
+end
+
+local function handleData()
+    local huge = math.huge
+    local TargetChar = nil
+    local Mouse = LocalPlayer:GetMouse()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team and player.Character then
+            local AimPart = player.Character:FindFirstChild(getgenv().AimPart)
+            if AimPart then
+                local vector, OnScreen = CurrentCamera:WorldToViewportPoint(AimPart.Position)
+                if OnScreen then
+                    local Magnitude = (Vector2.new(vector.X, vector.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+                    if Magnitude < huge then
+                        huge = Magnitude
+                        TargetChar = player.Character
+                    end
+                end
+            end
+        end
+    end
+    return TargetChar
+end
+
+-- Silent Aim
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    if getgenv().SilentAimEnabled and method == "FindPartOnRay" and not checkcaller() then
+        local Target = handleData()
+        if Target and Target:FindFirstChild(getgenv().AimPart) then
+            local Part = Target[getgenv().AimPart]
+            return Part, Part.Position
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+setreadonly(mt, true)
+
+-- Antivoid & Antitase loops
+RunService.Stepped:Connect(function()
+    if getgenv().antivoidEnabled then
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("HumanoidRootPart") and Char.HumanoidRootPart.Position.Y < number then
+            updateCFrame()
+        end
+    end
+    pcall(updateInstanceProperties)
+end)
+
+-- Kill All loop
+spawn(function()
+    while task.wait(0.1) do
+        if getgenv().Enabled then
+            for _, child in ipairs(Players:GetChildren()) do
+                pcall(function()
+                    if child ~= LocalPlayer and child.Character and not child.Character:FindFirstChildOfClass("ForceField") and child.Character.Humanoid.Health > 0 then
+                        while getgenv().Enabled and child.Character.Humanoid.Health > 0 do
+                            task.wait()
+                            LocalPlayer.Character.HumanoidRootPart.CFrame = child.Character.HumanoidRootPart.CFrame
+                            for _, item in ipairs(Players:GetChildren()) do
+                                if item ~= LocalPlayer then
+                                    game.ReplicatedStorage.meleeEvent:FireServer(item)
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end
+end)
+
+-- Click Teleport
+local Mouse = LocalPlayer:GetMouse()
+Mouse.Button1Down:Connect(function()
+    if getgenv().clickTeleportEnabled then
+        LocalPlayer.Character:MoveTo(Mouse.Hit.p)
+    end
+end)
+
+-- Atmosphere & Spin
+RunService.RenderStepped:Connect(function()
+    if not flag then
+        Lighting.Ambient = Color3.fromRGB(127,127,127)
+        Lighting.OutdoorAmbient = Color3.fromRGB(127,127,127)
+        Lighting.FogColor = Color3.fromRGB(255,255,255)
+        Lighting.ColorShift_Bottom = Color3.new(0,0,0)
+        Lighting.ColorShift_Top = Color3.new(0,0,0)
+    else
+        Lighting.Ambient = ambient
+        Lighting.OutdoorAmbient = ambient
+        Lighting.FogColor = ambient
+        Lighting.ColorShift_Bottom = ambient
+        Lighting.ColorShift_Top = ambient
+    end
+end)
+
+RunService.Stepped:Connect(function()
+    if capturedFlag then
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("HumanoidRootPart") then
+            Char.HumanoidRootPart.CFrame *= CFrame.Angles(0, math.rad(cFrameFlag), 0)
+        end
+    end
+end)
+
+-- Hip Height
+spawn(function()
+    while true do
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.HipHeight = getgenv().enabled and getgenv().value or 0
+        end
+        task.wait(0.1)
+    end
+end)
+
+-- Noclip & Infinite Jump
+RunService.Heartbeat:Connect(function()
+    if getgenv().Noclip then
+        local Char = LocalPlayer.Character
+        if Char then
+            pcall(function()
+                for _, v in ipairs(Char:GetDescendants()) do
+                    if v:IsA("BasePart") then v.CanCollide = false end
+                end
+            end)
+        end
+    end
+    if getgenv().loopW then
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.WalkSpeed = getgenv().Walkspeed
+        end
+    end
+    if getgenv().loopJ then
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.JumpPower = getgenv().Jumppower
+        end
+    end
+end)
+
+game:GetService("UserInputService").JumpRequest:Connect(function()
+    if getgenv().InfJ then
+        local Char = LocalPlayer.Character
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid:ChangeState("Jumping")
+        end
+    end
+end)
+
+-- ESP
+local esp = loadstring(game:HttpGet("https://kiriot22.com/releases/ESP.lua"))()
+esp:Toggle(true)
+esp.Players = false
+esp.Tracers = false
+esp.Boxes = false
+esp.Names = false
+esp.TeamColor = false
+esp.TeamMates = false
+
+-- Pestañas
+local InfoTab = Window:CreateTab("Info")
+local MainTab = Window:CreateTab("Main")
+local GiveTab = Window:CreateTab("Give")
+local VisualTab = Window:CreateTab("Visual")
+local TpTab = Window:CreateTab("Tp")
+local EspTab = Window:CreateTab("Esp")
+local WalkTab = Window:CreateTab("Walk")
+local TrollTab = Window:CreateTab("Troll")
+local MiscTab = Window:CreateTab("Misc")
+
+-- Info
+InfoTab:CreateSection("Información")
+InfoTab:CreateParagraph({Title = "Creador", Content = "by thaibao7444"})
+InfoTab:CreateButton({Name = "Copiar Discord", Callback = function() setclipboard("discord.gg/bYb3EweNk7") end})
+
+-- Main
+MainTab:CreateSection("Funciones Principales")
+MainTab:CreateToggle({Name = "Antivoid", CurrentValue = false, Flag = "antivoid", Callback = function(v) getgenv().antivoidEnabled = v end})
+MainTab:CreateToggle({Name = "Antitase", CurrentValue = false, Flag = "antitase", Callback = function(v) getgenv().antitaseEnabled = v end})
+MainTab:CreateToggle({Name = "Kill All", CurrentValue = false, Flag = "killall", Callback = function(v) getgenv().Enabled = v end})
+MainTab:CreateToggle({Name = "Kill Aura", CurrentValue = false, Flag = "killaura", Callback = function(v) getgenv().ka = v; if v then killAura() end end})
+MainTab:CreateToggle({Name = "Silent Aim", CurrentValue = false, Flag = "silentaim", Callback = function(v) getgenv().SilentAimEnabled = v end})
+MainTab:CreateDropdown({Name = "Parte a Apuntar", Options = {"Head", "HumanoidRootPart"}, CurrentOption = "Head", Flag = "aimpart", Callback = function(v) getgenv().AimPart = v end})
+MainTab:CreateToggle({Name = "Reproducir Sonidos", CurrentValue = false, Flag = "spamsound", Callback = function(v) getgenv().spamSoond = v; if v then spamSound() end end})
+MainTab:CreateToggle({Name = "Detener Sonidos", CurrentValue = false, Flag = "stopsound", Callback = function(v) getgenv().stopsounds = v; if v then stopSound() end end})
+MainTab:CreateButton({Name = "Volar Auto", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/thaibao/main/Carflylol"))() end})
+MainTab:CreateButton({Name = "Herramientas Construcción", Callback = function()
+    local bp = LocalPlayer.Backpack
+    local h = Instance.new("HopperBin") h.Name = "Hammer" h.BinType = 4 h.Parent = bp
+    local c = Instance.new("HopperBin") c.Name = "Clone" c.BinType = 3 c.Parent = bp
+end})
+MainTab:CreateToggle({Name = "Click Teleport", CurrentValue = false, Flag = "clicktp", Callback = function(v) getgenv().clickTeleportEnabled = v end})
+MainTab:CreateButton({Name = "Ir a Nexus", Callback = function()
+    LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(893.334778, 99.9899826, 2386.13208, 0.999913335, 0, -0.0131643685, 0, 1, 0, 0.0131643685, 0, 0.999913335)
+end})
+MainTab:CreateButton({Name = "Abrir Puerta Prisión", Callback = function()
+    local Original = LocalPlayer.Character.HumanoidRootPart.CFrame
+    local Boton = workspace.Prison_ITEMS.buttons["Prison Gate"]["Prison Gate"]
+    LocalPlayer.Character.HumanoidRootPart.CFrame = Boton.CFrame
+    task.wait(0.2)
+    workspace.Remote.ItemHandler:InvokeServer(Boton)
+    task.wait(0.1)
+    LocalPlayer.Character.HumanoidRootPart.CFrame = Original
+end})
+MainTab:CreateButton({Name = "Destruir Inodoros", Callback = function()
+    for _, d in ipairs(workspace.Prison_Cellblock.Cells_B:GetDescendants()) do if d.Name == "Health" and d.Parent then d.Parent:Destroy() end end
+    for _, d in ipairs(workspace.Prison_Cellblock.Cells_A:GetDescendants()) do if d.Name == "Health" and d.Parent then d.Parent:Destroy() end end
+end})
+
+-- Give
+GiveTab:CreateSection("Armas")
+local function GetItem(Nombre, Tipo)
+    local Original = LocalPlayer.Character.HumanoidRootPart.CFrame
+    local function Unsit() local H = LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if H then H.Sit = false end end
+    local Origen = Tipo == "gun" and workspace.Prison_ITEMS.giver or workspace.Prison_ITEMS.single
+    local Obj = Origen:FindFirstChild(Nombre)
+    if Obj and Obj:FindFirstChild("ITEMPICKUP") then
+        local Parte = Obj:FindFirstChildWhichIsA("BasePart")
+        while not Parte do task.wait() Parte = Obj:FindFirstChildWhichIsA("BasePart") end
+        repeat
+            Unsit()
+            LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(Parte.Position)
+            task.spawn(function() workspace.Remote.ItemHandler:InvokeServer(Parte) end)
+            task.wait()
+        until LocalPlayer.Backpack:FindFirstChild(Nombre) or LocalPlayer.Character:FindFirstChild(Nombre)
+    end
+    LocalPlayer.Character.HumanoidRootPart.CFrame = Original
+end
+GiveTab:CreateDropdown({Name = "Dar Arma", Options = {"AK-47","M4AI","Riot Sheild","Remington 870","M9"}, Callback = function(v) GetItem(v, "gun") end})
+GiveTab:CreateDropdown({Name = "Dar Objeto", Options = {"Crude Knife","Hammer","Key card"}, Callback = function(v) GetItem(v, "item") end})
+
+local function ModifyGunStats(Nombre, Modificaciones)
+    local Gun = LocalPlayer.Backpack:FindFirstChild(Nombre) or LocalPlayer.Character:FindFirstChild(Nombre)
+    if Gun and Gun:FindFirstChild("GunStates") then
+        local GS = require(Gun.GunStates)
+        for k, v in pairs(Modificaciones) do GS[k] = v end
+    end
+end
+GiveTab:CreateSection("Ajustes de Armas")
+GiveTab:CreateDropdown({Name = "Munición Infinita", Options = {"Taser","AK-47","M4AI","Riot Sheild","Remington 870","M9"}, Callback = function(v) ModifyGunStats(v, {MaxAmmo=math.huge,CurrentAmmo=math.huge,StoredAmmo=math.huge}) end})
+GiveTab:CreateDropdown({Name = "Disparo Automático", Options = {"Taser","AK-47","M4AI","Riot Sheild","Remington 870","M9"}, Callback = function(v) ModifyGunStats(v, {AutoFire=true}) end})
+GiveTab:CreateDropdown({Name = "Arma OP", Options = {"Taser","AK-47","M4AI","Riot Sheild","Remington 870","M9"}, Callback = function(v) ModifyGunStats(v, {MaxAmmo=math.huge,CurrentAmmo=math.huge,StoredAmmo=math.huge,FireRate=0.01,Spread=1,Range=500,ReloadTime=0.01,AutoFire=true}) end})
+GiveTab:CreateDropdown({Name = "Arma Lag", Options = {"Taser","AK-47","M4AI","Riot Sheild","Remington 870","M9"}, Callback = function(v) ModifyGunStats(v, {MaxAmmo=math.huge,CurrentAmmo=math.huge,StoredAmmo=math.huge,Bullets=18,FireRate=1e-7,Spread=0,Range=math.huge,ReloadTime=1e-6,AutoFire=true}) end})
+
+-- Visual
+VisualTab:CreateSection("Efectos Visuales")
+VisualTab:CreateToggle({Name = "Atmósfera Personalizada", CurrentValue = false, Flag = "atmosphere", Callback = function(v) flag = v end})
+VisualTab:CreateColorPicker({Name = "Color Atmósfera", Color = Color3.new(0,0,1), Flag = "atmocolor", Callback = function(c) ambient = c end})
+VisualTab:CreateToggle({Name = "Girar Personaje", CurrentValue = false, Flag = "spinbot", Callback = function(v) capturedFlag = v end})
+VisualTab:CreateSlider({Name = "Velocidad Giro", Range = {0, 360}, Increment = 1, CurrentValue = 0, Flag = "spinspeed", Callback = function(v) cFrameFlag = v end})
+VisualTab:CreateToggle({Name = "Altura Cadera", CurrentValue = false, Flag = "hipheight", Callback = function(v) getgenv().enabled = v end})
+VisualTab:CreateSlider({Name = "Valor Altura", Range = {-10, 500}, Increment = 1, CurrentValue = 0, Flag = "hipvalue", Callback = function(v) getgenv().value = v end})
+VisualTab:CreateButton({Name = "Colores Armas Cíclicos", Callback = function()
+    local Lista = {"AK-47","M4A1","Remington 870","M9"}
+    local function Animar(Obj)
+        spawn(function()
+            local c = 0
+            while Obj and Obj.Parent do
+                c = (c + 0.01) % 1
+                local Color = Color3.fromHSV(c,1,1)
+                for _, p in ipairs(Obj:GetDescendants()) do if p:IsA("BasePart") then p.Color = Color end end
+                task.wait(0.1)
+            end
+        end)
+    end
+    for _, N in ipairs(Lista) do
+        local W = LocalPlayer.Backpack:FindFirstChild(N) or LocalPlayer.Character:FindFirstChild(N)
+        if W then Animar(W) end
+    end
+end})
+VisualTab:CreateToggle({Name = "Noclip", CurrentValue = false, Flag = "noclip", Callback = function(v) getgenv().Noclip = v end})
+VisualTab:CreateToggle({Name = "Salto Infinito", CurrentValue = false, Flag = "infjump", Callback = function(v) getgenv().InfJ = v end})
+VisualTab:CreateButton({Name = "Salud Máxima", Callback = function()
+    local H = LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if H then H.Health = 100 end
+end})
+VisualTab:CreateToggle({Name = "Modo Dios", CurrentValue = false, Flag = "godmode", Callback = function(v)
+    getgenv().God = v
+    while v and task.wait() do
+        local H = LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if H then H.Health = 100 end
+    end
+end})
+VisualTab:CreateToggle({Name = "Auto Salto", CurrentValue = false, Flag = "autojump", Callback = function(v)
+    local H = LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if H then H.AutoJumpEnabled = v end
+end})
+VisualTab:CreateButton({Name = "Lanzar Todos", Callback = function() Rayfield:Notify({Title="Info", Content="Función compleja omitida por seguridad", Duration=3}) end})
+VisualTab:CreateButton({Name = "Taser a Todos", Callback = function()
+    local Org = LocalPlayer.Character.HumanoidRootPart.CFrame
+    for _, P in ipairs(Players.Teams.Criminals:GetPlayers()) do
+        if P ~= LocalPlayer then
+            for _ = 1, 10 do
+                workspace.Remote.arrest:InvokeServer(P.Character.HumanoidRootPart)
+                LocalPlayer.Character.HumanoidRootPart.CFrame = P.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,1)
+                task.wait()
+            end
+        end
+    end
+    LocalPlayer.Character.HumanoidRootPart.CFrame = Org
+end})
+
+-- Teletransporte
+TpTab:CreateSection("Ubicaciones")
+local function IrA(CF) LocalPlayer.Character.HumanoidRootPart.CFrame = CF end
+TpTab:CreateButton({Name = "Punto Oculto", Callback = function() IrA(CFrame.new(299.237854, 208.056396, 3610.72754, 0.99927485, 0, 0.038076099, 0, 1, 0, -0.038076099, 0, 0.99927485)) end})
+TpTab:CreateButton({Name = "Bajo Puente", Callback = function() IrA(CFrame.new(-70.1040802, 11.0993261, 1321.80713, -0.803904712, 0, -0.594758093, 0, 1, 0, 0.594758093, 0, -0.803904712)) end})
+TpTab:CreateButton({Name = "Base Criminales", Callback = function() IrA(CFrame.new(-889, 121, 2074)) end})
+TpTab:CreateButton({Name = "Estación Policía", Callback = function() IrA(CFrame.new(827, 99, 2260)) end})
+TpTab:CreateButton({Name = "Celdas", Callback = function() IrA(CFrame.new(915, 99, 2421)) end})
+TpTab:CreateButton({Name = "Patio", Callback = function() IrA(CFrame.new(817, 97, 2437)) end})
+TpTab:CreateSection("Cambiar Bando")
+TpTab:CreateButton({Name = "Policía", Callback = function() workspace.Remote.TeamEvent:FireServer("Bright blue") end})
+TpTab:CreateButton({Name = "Prisionero", Callback = function() workspace.Remote.TeamEvent:FireServer("Bright orange") end})
+TpTab:CreateButton({Name = "Criminal", Callback = function() IrA(CFrame.new(-920.399963, 96.8095779, 2138.25317, 0.00718167285, -0.0073257396, -0.999947369, 0, 0.999973178, -0.00732601853, 0.999974191, 0, 0.00718138926)) end})
+
+-- ESP
+EspTab:CreateSection("Configuración ESP")
+EspTab:CreateToggle({Name = "Mostrar Jugadores", CurrentValue = false, Flag = "esp_players", Callback = function(v) esp.Players = v end})
+EspTab:CreateToggle({Name = "Color por Equipo", CurrentValue = false, Flag = "esp_teamcolor", Callback = function(v) esp.TeamColor = v end})
+EspTab:CreateToggle({Name = "Mostrar Nombres", CurrentValue = false, Flag = "esp_names", Callback = function(v) esp.Names = v end})
+EspTab:CreateToggle({Name = "Mostrar Cajas", CurrentValue = false, Flag = "esp_boxes", Callback = function(v) esp.Boxes = v end})
+EspTab:CreateToggle({Name = "Líneas al Jugador", CurrentValue = false, Flag = "esp_tracers", Callback = function(v) esp.Tracers = v end})
+EspTab:CreateToggle({Name = "Herramientas", CurrentValue = false, Flag = "esp_tools", Callback = function(v) getgenv().ToolESPEnabled = v end})
+
+-- Movimiento
+WalkTab:CreateSection("Movimiento")
+WalkTab:CreateSlider({Name = "Velocidad", Range = {0, 200}, Increment = 1, CurrentValue = 16, Flag = "walkspeed", Callback = function(v) getgenv().Walkspeed = v; local H = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if H then H.WalkSpeed = v end end})
+WalkTab:CreateToggle({Name = "Mantener Velocidad", CurrentValue = false, Flag = "loopwalk", Callback = function(v) getgenv().loopW = v end})
+WalkTab:CreateSlider({Name = "Fuerza Salto", Range = {0, 200}, Increment = 1, CurrentValue = 50, Flag = "jumppower", Callback = function(v) getgenv().Jumppower = v; local H = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if H then H.JumpPower = v end end})
+WalkTab:CreateToggle({Name = "Mantener Salto", CurrentValue = false, Flag = "loopjump", Callback = function(v) getgenv().loopJ = v end})
+WalkTab:CreateSlider({Name = "Campo Visión", Range = {10, 120}, Increment = 1, CurrentValue = 70, Flag = "fov", Callback = function(v) CurrentCamera.FieldOfView = v end})
+WalkTab:CreateSlider({Name = "Tamaño Hitbox", Range = {1, 20}, Increment = 1, CurrentValue = 2, Flag = "hitbox", Callback = function(v) _G.HeadSize = v; _G.Disabled = true end})
+
+-- Troll
+TrollTab:CreateSection("Diversión")
+TrollTab:CreateButton({Name = "Obtener Palo", Callback = function() Rayfield:Notify({Title="Info", Content="Función omitida", Duration=2}) end})
+TrollTab:CreateButton({Name = "Cerrar Servidor", Callback = function() Rayfield:Notify({Title="Advertencia", Content="Función peligrosa omitida", Duration=3}) end})
+TrollTab:CreateButton({Name = "Fly GUI v3", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))() end})
+TrollTab:CreateButton({Name = "Rrizz Life", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/elliexmln/PrizzLife/main/pladmin.lua"))() end})
+TrollTab:CreateButton({Name = "Tiger Admin", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/thaibao/main/Tigeradmin"))() end})
+TrollTab:CreateButton({Name = "Infinite Yield", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))() end})
+
+-- Misceláneos
+MiscTab:CreateSection("Chat")
+getgenv().enabled = false
+getgenv().chattext = ""
+MiscTab:CreateToggle({Name = "Spam Chat", CurrentValue = false, Flag = "spamchat", Callback = function(v)
+    getgenv().enabled = v
+    while v and task.wait(1) do
+        if getgenv().chattext ~= "" then
+            game.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(getgenv().chattext, "All")
+        end
+    end
+end})
+MiscTab:CreateInput({Name = "Mensaje Spam", PlaceholderText = "Escribe el mensaje", Flag = "spammsg", Callback = function(v) getgenv().chattext = v end})
+
+MiscTab:CreateSection("Servidor")
+MiscTab:CreateButton({Name = "Cambiar Servidor", Callback = function()
+    local TS = game:GetService("TeleportService")
+    local HS = game:GetService("HttpService")
+    local Place = game.PlaceId
+    local function ObtenerServidor()
+        local Datos = HS:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..Place.."/servers/Public?sortOrder=Asc&limit=10"))
+        return Datos.data[1]
+    end
+    local Serv = ObtenerServidor()
+    if Serv then TS:TeleportToPlaceInstance(Place, Serv.id, LocalPlayer) end
+end})
+MiscTab:CreateButton({Name = "Reingresar", Callback = function() game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer) end})
+
+MiscTab:CreateSection("Rendimiento")
+MiscTab:CreateButton({Name = "Optimizar FPS", Callback = function()
+    for _, v in ipairs(game:GetDescendants()) do
+        if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic end
+        if v:IsA("ParticleEmitter") or v:IsA("Explosion") then v.Enabled = false end
+        if v:IsA("BloomEffect") or v:IsA("BlurEffect") then v.Enabled = false end
+    end
+end})
+MiscTab:CreateButton({Name = "Brillo Total", Callback = function()
+    Lighting.Ambient = Color3.new(1,1,1)
+    Lighting.ColorShift_Bottom = Color3.new(1,1,1)
+    Lighting.ColorShift_Top = Color3.new(1,1,1)
+    Lighting.FogEnd = 100000
+    Lighting.ClockTime = 14
+    Lighting.GlobalShadows = false
+end})
+
+-- Notificación de inicio
+Rayfield:Notify({Title = "Tbao Hub", Content = "Interfaz cargada correctamente", Duration = 4})
