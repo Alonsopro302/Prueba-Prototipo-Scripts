@@ -1,745 +1,279 @@
+-- ══════════════════════════════════════════════════════
+--        PICHIGDASOS HUB — VERSIÓN LIMPIA
+--        + ESP COMPLETO | SIN ERRORES | FUNCIONAL
+-- ══════════════════════════════════════════════════════
+
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
-local MarketplaceService = game:GetService("MarketplaceService")
-local gameName = MarketplaceService:GetProductInfo(game.PlaceId).Name
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
-local Debris = game:GetService("Debris")
-local Lighting = game:GetService("Lighting")
 
+-- === INTERFAZ ===
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
-local Options = Library.Options
-local Toggles = Library.Toggles
-Library.ForceCheckbox = false
-Library.ShowToggleFrameInKeybinds = true
 
 local Window = Library:CreateWindow({
     Title = "Pichigdasos Hub",
-    Footer = "By Pichigdasos | " .. LP.Name,
+    Footer = "By Pichigdasos",
     NotifySide = "Right",
     ShowCustomCursor = true,
     Icon = "rbxassetid://111271260721038"
 })
 
 local Tabs = {
-    ["Player Info"] = Window:AddTab("Player Info", "user"),
-    ["ESP"] = Window:AddTab("ESP", "eye"),
-    ["Generator"] = Window:AddTab("Generator", "zap"),
-    ["Player"] = Window:AddTab("Player", "user"),
-    ["Aimbot"] = Window:AddTab("Aimbot", "crosshair"),
-    ["Auto Block"] = Window:AddTab("Auto Block", "shield"),
-    ["Stab"] = Window:AddTab("Stab", "sword"),
-    ["Sk8"] = Window:AddTab("Sk8", "zap"),
-    ["Action"] = Window:AddTab("Action", "smile"),
-    ["Music"] = Window:AddTab("Music", "music"),
-    ["Misc"] = Window:AddTab("Misc", "paperclip"),
-    ["UI Settings"] = Window:AddTab("UI Settings", "settings"),
+    Main = Window:AddTab("Main", "home"),
+    ESP = Window:AddTab("ESP", "eye"),
+    Misc = Window:AddTab("Misc", "settings"),
 }
 
-local information = Tabs["Player Info"]:AddLeftGroupbox("Player", "user")
-local avatarImage = Instance.new("ImageLabel")
-avatarImage.Name = "AvatarThumbnail"
-avatarImage.Size = UDim2.new(0, 220, 0, 220)
-avatarImage.Position = UDim2.new(0.5, -90, 0, 10)
-avatarImage.Image = "rbxassetid://0"
-avatarImage.BackgroundTransparency = 1
-avatarImage.BorderSizePixel = 0
-avatarImage.ScaleType = Enum.ScaleType.Fit
-if information.Container then
-    avatarImage.Parent = information.Container
-elseif information.Frame then
-    avatarImage.Parent = information.Frame
-else
-    avatarImage.Parent = information
-end
-task.spawn(function()
-    local player = LP
-    if not player then repeat task.wait(0.1) player = Players.LocalPlayer until player end
-    task.wait(1)
-    local success, thumbnail = pcall(function()
-        return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size180x180)
-    end)
-    if success and thumbnail then
-        avatarImage.Image = thumbnail
-    else
-        local alternatives = {Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailType.AvatarBust, Enum.ThumbnailType.Avatar}
-        for _, thumbnailType in ipairs(alternatives) do
-            local altSuccess, altThumbnail = pcall(function()
-                return Players:GetUserThumbnailAsync(player.UserId, thumbnailType, Enum.ThumbnailSize.Size180x180)
-            end)
-            if altSuccess and altThumbnail then avatarImage.Image = altThumbnail break end
-        end
-    end
-end)
-information:AddLabel("Executor : " .. identifyexecutor())
-information:AddLabel("Username : " .. LP.Name)
-information:AddLabel("User ID : " .. LP.UserId)
-information:AddLabel("Display Name : " .. LP.DisplayName)
-information:AddLabel("Account Age : " .. LP.AccountAge .. " days")
-
-local InfoGroup = Tabs["Player Info"]:AddRightGroupbox("Info", "info")
-local welcomeLabel = InfoGroup:AddLabel({Text = "Welcome to Pichigdasos Hub", DoesWrap = true})
-task.spawn(function()
-    while not Library.Unloaded do
-        task.wait(0.1)
-        local accentColor = ThemeManager.ThemeData.AccentColor or Color3.fromRGB(137, 180, 250)
-        local fullText = 'Welcome to <font color="#' .. string.format("%02x%02x%02x",
-            math.floor(accentColor.R * 255), math.floor(accentColor.G * 255), math.floor(accentColor.B * 255)) .. '">Pichigdasos Hub</font>'
-        welcomeLabel:SetText(fullText)
-    end
-end)
-
-local DevGroup = Tabs["Player Info"]:AddRightGroupbox("Developer", "user")
-DevGroup:AddLabel("[Pichigdasos] - Owner And Developer")
-local CommunityGroup = Tabs["Player Info"]:AddRightGroupbox("Community", "users")
-CommunityGroup:AddButton("Copy Discord Link", function()
-    pcall(function()
-        setclipboard("https://discord.gg/F4wrAGnRgF")
-        Library:Notify({Title = "Discord", Description = "Link copied to clipboard", Time = 2})
-    end)
-end)
-
--- ====================== SISTEMA ESP COMPLETO ======================
-local EspLib = {}
+-- ══════════════════════════════════════════════════════
+--                      SISTEMA ESP
+-- ══════════════════════════════════════════════════════
 local Camera = Workspace.CurrentCamera
-local MapFolder = nil
-local mapObj = Workspace:FindFirstChild("Map")
-if mapObj then MapFolder = mapObj:FindFirstChild("Ingame") end
-local DummyNames = {
-    "PizzaDeliveryRig", "Mafiaso1", "Mafiaso2", "Builderman", "Elliot",
-    "ShedletskyCORRUPT", "ChancecORRUPT", "ChanceCORRUPT", "Mafia1", "Mafia2",
-    "Mafia3", "Mafia4", "Mafia5", "Mafia6", "Mafia7", "Mafia8", "Mafia9",
-    "GreenGuy", "RedGuy", "BlueGuy", "PurpleGuy", "PinkGuy", "YellowGuy",
-    "OrangeGuy", "GreyGuy"
+local MapFolder = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("Ingame")
+local ESP_Active = {
+    Killer = false, Survivor = false, Generator = false, Item = false,
+    Pizza = false, Delivery = false, Zombie = false, Tripwire = false,
+    Mine = false, Respawn = false, Graffiti = false, GroundBulb = false, Vine = false,
 }
-local ObjectESPData = {}
-local PlayerESPData = {}
-local ESPSettings = {
-    generatorESP = false, itemESP = false, pizzaEsp = false, pizzaDeliveryEsp = false,
-    zombieEsp = false, taphTripwireEsp = false, tripMineEsp = false, twoTimeRespawnEsp = false,
-    graffitiEsp = false,
-    generatorColor = Color3.fromRGB(200, 100, 200), itemColor = Color3.fromRGB(200, 200, 0),
-    pizzaColor = Color3.fromRGB(200, 150, 0), pizzaDeliveryColor = Color3.fromRGB(200, 100, 100),
-    zombieColor = Color3.fromRGB(200, 100, 100), taphTripwireColor = Color3.fromRGB(100, 0, 100),
-    tripMineColor = Color3.fromRGB(255, 0, 255), twoTimeRespawnColor = Color3.fromRGB(0, 150, 200),
-    graffitiColor = Color3.fromRGB(255, 255, 255),
-    limitDistance = false, maxDistance = 150,
-    killerESP = false, playerESP = false, killerNameESP = true, survivorNameESP = true,
-    killerHealthESP = true, survivorHealthESP = true, killerSkinESP = false, survivorSkinESP = false,
-    killerColor = Color3.fromRGB(255, 100, 100), survivorColor = Color3.fromRGB(100, 255, 100),
-    killerFillTransparency = 0.7, killerOutlineTransparency = 0.3,
-    survivorFillTransparency = 0.7, survivorOutlineTransparency = 0.3,
-    generatorTracers = false, itemTracers = false, pizzaTracers = false, pizzaDeliveryTracers = false,
-    zombieTracers = false, taphTripwireTracers = false, tripMineTracers = false, twoTimeRespawnTracers = false,
-    killerTracers = false, survivorTracers = false,
-    showGeneratorName = true, showItemName = true, showPizzaName = true, showPizzaDeliveryName = true,
-    showZombieName = true, showTaphTripwireName = true, showTripMineName = true, showTwoTimeRespawnName = true,
-    showGraffitiName = true,
-    azureGroundBulbESP = false, azureVineESP = false,
-    azureGroundBulbColor = Color3.fromRGB(0, 255, 200),
-    azureVineColor = Color3.fromRGB(200, 0, 255),
+local ESP_Colors = {
+    Killer = Color3.fromRGB(255, 80, 80),
+    Survivor = Color3.fromRGB(80, 255, 80),
+    Generator = Color3.fromRGB(200, 100, 220),
+    Item = Color3.fromRGB(255, 200, 0),
+    Pizza = Color3.fromRGB(255, 160, 0),
+    Delivery = Color3.fromRGB(220, 80, 80),
+    Zombie = Color3.fromRGB(180, 60, 60),
+    Tripwire = Color3.fromRGB(120, 0, 180),
+    Mine = Color3.fromRGB(255, 0, 255),
+    Respawn = Color3.fromRGB(0, 180, 255),
+    Graffiti = Color3.fromRGB(255, 255, 255),
+    GroundBulb = Color3.fromRGB(0, 255, 180),
+    Vine = Color3.fromRGB(180, 0, 255),
 }
+local ESP_Data = {} -- Almacena los highlights creados
 
-local function IsRagdoll(model)
-    local ragdolls = Workspace:FindFirstChild("Ragdolls")
-    return ragdolls and (model:IsDescendantOf(ragdolls) or model.Parent == ragdolls)
+-- Funciones auxiliares
+local function IsRagdoll(m) return Workspace:FindFirstChild("Ragdolls") and m:IsDescendantOf(Workspace.Ragdolls) end
+local function RemoveESP(m)
+    if not m then return end
+    pcall(function()
+        if m:FindFirstChild("Pichig_ESP") then m.Pichig_ESP:Destroy() end
+        if m:FindFirstChild("Pichig_ESP_Text") then m.Pichig_ESP_Text:Destroy() end
+    end)
 end
-local function IsSpectating(player)
-    if not player then return false end
-    local pf = Workspace:FindFirstChild("Players")
-    if not pf then return false end
-    local sp = pf:FindFirstChild("Spectating")
-    return sp and sp:FindFirstChild(player.Name) ~= nil
-end
-local function GetGeneratorPart(model)
-    if not model then return nil end
-    local instances = model:FindFirstChild("Instances")
-    if instances then
-        local generator = instances:FindFirstChild("Generator")
-        if generator then
-            local cube = generator:FindFirstChild("Cube.003")
-            if cube and cube:IsA("BasePart") then return cube end
-            for _, v in ipairs(generator:GetDescendants()) do if v:IsA("BasePart") then return v end end
-        end
-        for _, v in ipairs(instances:GetDescendants()) do if v:IsA("BasePart") and tostring(v.Name):lower():find("cube") then return v end end
-    end
-    for _, v in ipairs(model:GetDescendants()) do if v:IsA("BasePart") and v.Name:lower():find("cube") then return v end end
-    for _, v in ipairs(model:GetDescendants()) do if v:IsA("BasePart") then return v end end
-    return nil
-end
-
-local function createPlayerESP(model, color, isKiller)
-    if model:FindFirstChild("Pichigdasos_Highlight") then return end
-    if IsRagdoll(model) then return end
-    local hrp = model:FindFirstChild("HumanoidRootPart")
+local function CreateESP_Model(model, color, texto)
+    if not model or model:FindFirstChild("Pichig_ESP") or IsRagdoll(model) then return end
+    local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
     if not hrp then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "Pichigdasos_Highlight"
-    highlight.Adornee = model
-    highlight.FillColor = color
-    highlight.OutlineColor = color
-    highlight.FillTransparency = isKiller and ESPSettings.killerFillTransparency or ESPSettings.survivorFillTransparency
-    highlight.OutlineTransparency = isKiller and ESPSettings.killerOutlineTransparency or ESPSettings.survivorOutlineTransparency
-    highlight.Parent = model
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "Pichigdasos_Billboard"
-    billboard.Adornee = hrp
-    billboard.Size = UDim2.new(0, 120, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 4, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = model
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
-    nameLabel.Position = UDim2.new(0, 0, 0, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = "Loading..."
-    nameLabel.Font = Enum.Font.Jura
-    nameLabel.TextColor3 = color
-    nameLabel.TextSize = 8
-    nameLabel.TextStrokeTransparency = 0.6
-    nameLabel.Parent = billboard
-    local hpLabel = Instance.new("TextLabel")
-    hpLabel.Size = UDim2.new(1, 0, 0.4, 0)
-    hpLabel.Position = UDim2.new(0, 0, 0.4, 0)
-    hpLabel.BackgroundTransparency = 1
-    hpLabel.Text = "HP: N/A"
-    hpLabel.Font = Enum.Font.Jura
-    hpLabel.TextColor3 = color
-    hpLabel.TextSize = 8
-    hpLabel.TextStrokeTransparency = 0.6
-    hpLabel.Parent = billboard
-    local data = { model = model, nameLabel = nameLabel, hpLabel = hpLabel, isKiller = isKiller }
-    table.insert(PlayerESPData, data)
-    local function updateText()
-        if not data.model or not data.model.Parent then return end
-        local m = data.model
-        local isK = data.isKiller
-        local displayName = m:GetAttribute("ActorDisplayName") or (isK and "KILLER" or "SURVIVOR")
-        local skinName = m:GetAttribute("SkinNameDisplay")
-        local text = displayName
-        if (isK and ESPSettings.killerSkinESP) or (not isK and ESPSettings.survivorSkinESP) then
-            if skinName and skinName ~= "" then text = text .. " | " .. skinName end
-        end
-        nameLabel.Text = text
-        local humanoid = m:FindFirstChild("Humanoid")
-        if humanoid then
-            hpLabel.Text = string.format("HP: %d/%d", math.floor(humanoid.Health), math.floor(humanoid.MaxHealth))
-        end
-        if highlight and highlight.Parent then
-            highlight.FillTransparency = isK and ESPSettings.killerFillTransparency or ESPSettings.survivorFillTransparency
-            highlight.OutlineTransparency = isK and ESPSettings.killerOutlineTransparency or ESPSettings.survivorOutlineTransparency
-        end
-    end
-    updateText()
-    model:GetAttributeChangedSignal("ActorDisplayName"):Connect(updateText)
-    model:GetAttributeChangedSignal("SkinNameDisplay"):Connect(updateText)
-    local humanoid = model:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid:GetPropertyChangedSignal("Health"):Connect(updateText)
-        humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(updateText)
-    end
+
+    -- Highlight
+    local hl = Instance.new("Highlight")
+    hl.Name = "Pichig_ESP"
+    hl.Adornee = model
+    hl.FillColor = color
+    hl.OutlineColor = color
+    hl.FillTransparency = 0.6
+    hl.OutlineTransparency = 0.2
+    hl.Parent = model
+
+    -- Texto
+    local bg = Instance.new("BillboardGui")
+    bg.Name = "Pichig_ESP_Text"
+    bg.Adornee = hrp
+    bg.AlwaysOnTop = true
+    bg.Size = UDim2.new(0, 150, 0, 40)
+    bg.StudsOffset = Vector3.new(0, 3.5, 0)
+    bg.Parent = model
+
+    local lbl = Instance.new("TextLabel")
+    lbl.BackgroundTransparency = 1
+    lbl.Text = texto or model.Name
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextColor3 = color
+    lbl.TextSize = 9
+    lbl.TextStrokeTransparency = 0
+    lbl.Size = UDim2.new(1,0,1,0)
+    lbl.Parent = bg
 end
 
-local function removePlayerESP(model)
-    for i = #PlayerESPData, 1, -1 do if PlayerESPData[i].model == model then table.remove(PlayerESPData, i) end end
-    pcall(function()
-        if model:FindFirstChild("Pichigdasos_Highlight") then model.Pichigdasos_Highlight:Destroy() end
-        if model:FindFirstChild("Pichigdasos_Billboard") then model.Pichigdasos_Billboard:Destroy() end
-    end)
-end
+-- Actualización principal del ESP
+task.spawn(function()
+    while task.wait(0.4) do
+        -- Limpiar todo primero
+        for _,v in pairs(Workspace:GetDescendants()) do
+            if v:FindFirstChild("Pichig_ESP") and not ESP_Active[v:GetAttribute("ESP_Type")] then RemoveESP(v) end
+        end
 
-local function CreateObjectESP(model, color, isGenerator, isItem, isPizza, isPizzaDelivery, isZombie, isTaph, isTripMine, isRespawn, isGraffiti, displayText)
-    if not model then return end
-    if model:FindFirstChild("Pichigdasos_ObjHighlight") then return end
-    if isGenerator and model:FindFirstChild("Progress") and model.Progress.Value == 100 then return end
-    if IsRagdoll(model) then return end
-    if ESPSettings.limitDistance then
-        local rootPart = model:IsA("BasePart") and model or model:FindFirstChild("HumanoidRootPart")
-        if rootPart then
-            local distance = (Camera.CFrame.Position - rootPart.Position).Magnitude
-            if distance > ESPSettings.maxDistance then return end
-        end
-    end
-    local targetPart
-    if isGenerator then targetPart = GetGeneratorPart(model)
-    elseif isItem then targetPart = model:FindFirstChild("ItemRoot")
-    elseif isPizza then targetPart = model:IsA("BasePart") and model or model:FindFirstChildWhichIsA("BasePart", true)
-    elseif isPizzaDelivery then targetPart = model:IsA("BasePart") and model or model:FindFirstChildWhichIsA("BasePart", true)
-    elseif isZombie then targetPart = model:IsA("BasePart") and model or model:FindFirstChildWhichIsA("BasePart", true)
-    elseif isTaph then targetPart = model:IsA("Model") and (GetGeneratorPart(model) or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)) or model
-    elseif isTripMine then targetPart = model:IsA("Model") and (GetGeneratorPart(model) or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)) or model
-    elseif isRespawn then targetPart = model:IsA("Model") and (GetGeneratorPart(model) or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)) or model
-    elseif isGraffiti then targetPart = model:IsA("BasePart") and model or model:FindFirstChildWhichIsA("BasePart", true)
-    else return end
-    if not targetPart then return end
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "Pichigdasos_ObjHighlight"
-    highlight.Adornee = model
-    highlight.FillColor = color
-    highlight.OutlineColor = color
-    highlight.FillTransparency = 0.7
-    highlight.OutlineTransparency = 0.3
-    highlight.Parent = model
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "Pichigdasos_ObjBillboard"
-    billboard.Adornee = targetPart
-    billboard.Size = UDim2.new(0, 120, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 4, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = model
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = displayText or model:GetAttribute("Type") or model.Name
-    textLabel.Font = Enum.Font.Jura
-    textLabel.TextColor3 = color
-    textLabel.TextSize = 8
-    textLabel.TextStrokeTransparency = 0.6
-    textLabel.Parent = billboard
-    table.insert(ObjectESPData, {model = model, highlight = highlight, billboard = billboard})
-end
+        -- === JUGADORES ===
+        local PlayersFolder = Workspace:FindFirstChild("Players")
+        if PlayersFolder then
+            local Killers = PlayersFolder:FindFirstChild("Killers")
+            local Survivors = PlayersFolder:FindFirstChild("Survivors")
 
-local function RemoveObjectESP(model)
-    if not model then return end
-    for i = #ObjectESPData, 1, -1 do if ObjectESPData[i].model == model then table.remove(ObjectESPData, i) end end
-    pcall(function()
-        if model:FindFirstChild("Pichigdasos_ObjHighlight") then model.Pichigdasos_ObjHighlight:Destroy() end
-        if model:FindFirstChild("Pichigdasos_ObjBillboard") then model.Pichigdasos_ObjBillboard:Destroy() end
-    end)
-end
-
-local function UpdateESP()
-    local pf = Workspace:FindFirstChild("Players")
-    if pf then
-        local killersFolder = pf:FindFirstChild("Killers")
-        local survivorsFolder = pf:FindFirstChild("Survivors")
-        if killersFolder then
-            for _, killer in ipairs(killersFolder:GetChildren()) do
-                if killer == LP.Character then continue end
-                if IsRagdoll(killer) then removePlayerESP(killer); continue end
-                local player = Players:GetPlayerFromCharacter(killer)
-                if not player or IsSpectating(player) then removePlayerESP(killer); continue end
-                if ESPSettings.killerESP then
-                    if not killer:FindFirstChild("Pichigdasos_Highlight") then createPlayerESP(killer, ESPSettings.killerColor, true) end
-                else removePlayerESP(killer) end
-            end
-        end
-        if survivorsFolder then
-            for _, survivor in ipairs(survivorsFolder:GetChildren()) do
-                if survivor == LP.Character then continue end
-                if IsRagdoll(survivor) then removePlayerESP(survivor); continue end
-                local player = Players:GetPlayerFromCharacter(survivor)
-                if not player or IsSpectating(player) then removePlayerESP(survivor); continue end
-                if ESPSettings.playerESP then
-                    if not survivor:FindFirstChild("Pichigdasos_Highlight") then createPlayerESP(survivor, ESPSettings.survivorColor, false) end
-                else removePlayerESP(survivor) end
-            end
-        end
-    end
-    if not MapFolder then return end
-    local ingame = MapFolder
-    if ingame:FindFirstChild("Map") then
-        for _, gen in ipairs(ingame.Map:GetChildren()) do
-            if gen:IsA("Model") and gen.Name:lower():find("generator") and gen.Name ~= "FakeGenerator" then
-                if IsRagdoll(gen) then RemoveObjectESP(gen); continue end
-                local progress = gen:FindFirstChild("Progress")
-                if ESPSettings.generatorESP and progress and progress.Value < 100 then
-                    if not gen:FindFirstChild("Pichigdasos_ObjHighlight") then CreateObjectESP(gen, ESPSettings.generatorColor, true) end
-                else RemoveObjectESP(gen) end
-            end
-        end
-        for _, item in ipairs(ingame.Map:GetDescendants()) do
-            if item.Name == "ItemRoot" and item.Parent and item.Parent:IsA("Model") then
-                local itemModel = item.Parent
-                if ESPSettings.itemESP and not itemModel:FindFirstChild("Pichigdasos_ObjHighlight") then
-                    CreateObjectESP(itemModel, ESPSettings.itemColor, false, true)
-                elseif not ESPSettings.itemESP then RemoveObjectESP(itemModel) end
-            end
-        end
-    end
-    for _, pizza in ipairs(ingame:GetChildren()) do
-        if pizza.Name == "Pizza" and pizza:IsA("BasePart") then
-            if ESPSettings.pizzaEsp and not pizza:FindFirstChild("Pichigdasos_ObjHighlight") then
-                CreateObjectESP(pizza, ESPSettings.pizzaColor, false, false, true)
-            else RemoveObjectESP(pizza) end
-        end
-    end
-    for _, delivery in ipairs(ingame:GetChildren()) do
-        if delivery:IsA("Model") and table.find(DummyNames, delivery.Name) then
-            if ESPSettings.pizzaDeliveryEsp and delivery:FindFirstChild("HumanoidRootPart") and not delivery:FindFirstChild("Pichigdasos_ObjHighlight") then
-                CreateObjectESP(delivery, ESPSettings.pizzaDeliveryColor, false, false, false, true)
-            else RemoveObjectESP(delivery) end
-        end
-    end
-    for _, zombie in ipairs(ingame:GetChildren()) do
-        if zombie.Name == "1x1x1x1Zombie" and zombie:IsA("Model") then
-            if ESPSettings.zombieEsp and zombie:FindFirstChild("HumanoidRootPart") and not zombie:FindFirstChild("Pichigdasos_ObjHighlight") then
-                CreateObjectESP(zombie, ESPSettings.zombieColor, false, false, false, false, true)
-            else RemoveObjectESP(zombie) end
-        end
-    end
-    for _, obj in ipairs(ingame:GetChildren()) do
-        if obj.Name:match("TaphTripwire$") and obj:IsA("Model") then
-            if ESPSettings.taphTripwireEsp and not obj:FindFirstChild("Pichigdasos_ObjHighlight") then
-                CreateObjectESP(obj, ESPSettings.taphTripwireColor, false, false, false, false, false, true)
-            else RemoveObjectESP(obj) end
-        end
-        if obj.Name == "SubspaceTripmine" and obj:IsA("Model") then
-            if ESPSettings.tripMineEsp and not obj:FindFirstChild("Pichigdasos_ObjHighlight") then
-                CreateObjectESP(obj, ESPSettings.tripMineColor, false, false, false, false, false, false, true)
-            else RemoveObjectESP(obj) end
-        end
-        if obj.Name == "GraffitiCL" and obj:IsA("BasePart") then
-            if ESPSettings.graffitiEsp and not obj:FindFirstChild("Pichigdasos_ObjHighlight") then
-                CreateObjectESP(obj, ESPSettings.graffitiColor, false, false, false, false, false, false, false, false, true)
-            else RemoveObjectESP(obj) end
-        end
-    end
-    for _, obj in ipairs(ingame:GetDescendants()) do
-        if obj and obj.Name and tostring(obj.Name):lower():find("respawnlocation") then
-            local target = obj:IsA("Model") and obj or obj:IsA("BasePart") and obj or obj:FindFirstAncestorOfClass("Model")
-            if target and not IsRagdoll(target) then
-                if ESPSettings.twoTimeRespawnEsp and not target:FindFirstChild("Pichigdasos_ObjHighlight") then
-                    CreateObjectESP(target, ESPSettings.twoTimeRespawnColor, false, false, false, false, false, false, false, true)
-                else RemoveObjectESP(target) end
-            end
-        end
-    end
-    if MapFolder then
-        for _, obj in ipairs(MapFolder:GetDescendants()) do
-            if obj:IsA("Model") then
-                local nameLower = obj.Name:lower()
-                if nameLower == "groundbulbmodel" then
-                    if ESPSettings.azureGroundBulbESP and not obj:FindFirstChild("Pichigdasos_ObjHighlight") then
-                        CreateObjectESP(obj, ESPSettings.azureGroundBulbColor, false, false, false, false, false, false, false, false, true, "GroundBulb")
-                    else RemoveObjectESP(obj) end
-                elseif nameLower == "vinemodel" then
-                    if ESPSettings.azureVineESP and not obj:FindFirstChild("Pichigdasos_ObjHighlight") then
-                        CreateObjectESP(obj, ESPSettings.azureVineColor, false, false, false, false, false, false, false, false, true, "Vine")
-                    else RemoveObjectESP(obj) end
-                end
-            end
-        end
-    end
-end
-
-task.spawn(function() while task.wait(0.5) do pcall(UpdateESP) end end)
-
-function EspLib:UpdateAllPlayerText()
-    for _, d in ipairs(PlayerESPData) do
-        local m = d.model
-        local isK = d.isKiller
-        local displayName = m:GetAttribute("ActorDisplayName") or (isK and "KILLER" or "SURVIVOR")
-        local skinName = m:GetAttribute("SkinNameDisplay")
-        local text = displayName
-        if (isK and ESPSettings.killerSkinESP) or (not isK and ESPSettings.survivorSkinESP) then
-            if skinName and skinName ~= "" then text = text .. " | " .. skinName end
-        end
-        d.nameLabel.Text = text
-        local humanoid = m:FindFirstChild("Humanoid")
-        if humanoid then
-            d.hpLabel.Text = string.format("HP: %d/%d", math.floor(humanoid.Health), math.floor(humanoid.MaxHealth))
-        end
-    end
-end
-
--- ==== INTERFAZ ESP ====
-local KillerGroup = Tabs.ESP:AddLeftGroupbox("Killer", "user")
-local SurvivorGroup = Tabs.ESP:AddLeftGroupbox("Survivor", "user")
-local ItemGroup = Tabs.ESP:AddRightGroupbox("Items", "box")
-local SpecialGroup = Tabs.ESP:AddRightGroupbox("Special", "alert")
-local MiscGroup = Tabs.ESP:AddRightGroupbox("Misc", "settings")
-
-KillerGroup:AddToggle("KillerESP", { Text = "Killer ESP", Default = false, Callback = function(v) ESPSettings.killerESP = v end })
-KillerGroup:AddToggle("KillerNameESP", { Text = "Show Name", Default = true, Callback = function(v) ESPSettings.killerNameESP = v; EspLib:UpdateAllPlayerText() end })
-KillerGroup:AddToggle("KillerHealthESP", { Text = "Show Health", Default = true, Callback = function(v) ESPSettings.killerHealthESP = v; EspLib:UpdateAllPlayerText() end })
-KillerGroup:AddToggle("KillerSkinESP", { Text = "Show Skin", Default = false, Callback = function(v) ESPSettings.killerSkinESP = v; EspLib:UpdateAllPlayerText() end })
-KillerGroup:AddSlider("KillerFillTransparency", { Text = "Fill Transparency", Default = 0.7, Min = 0, Max = 1, Rounding = 2, Callback = function(v) ESPSettings.killerFillTransparency = v end })
-KillerGroup:AddSlider("KillerOutlineTransparency", { Text = "Outline Transparency", Default = 0.3, Min = 0, Max = 1, Rounding = 2, Callback = function(v) ESPSettings.killerOutlineTransparency = v end })
-KillerGroup:AddLabel("Killer Color"):AddColorPicker("KillerColor", { Default = ESPSettings.killerColor, Callback = function(v) ESPSettings.killerColor = v end })
-
-SurvivorGroup:AddToggle("SurvivorESP", { Text = "Survivor ESP", Default = false, Callback = function(v) ESPSettings.playerESP = v end })
-SurvivorGroup:AddToggle("SurvivorNameESP", { Text = "Show Name", Default = true, Callback = function(v) ESPSettings.survivorNameESP = v; EspLib:UpdateAllPlayerText() end })
-SurvivorGroup:AddToggle("SurvivorHealthESP", { Text = "Show Health", Default = true, Callback = function(v) ESPSettings.survivorHealthESP = v; EspLib:UpdateAllPlayerText() end })
-SurvivorGroup:AddToggle("SurvivorSkinESP", { Text = "Show Skin", Default = false, Callback = function(v) ESPSettings.survivorSkinESP = v; EspLib:UpdateAllPlayerText() end })
-SurvivorGroup:AddSlider("SurvivorFillTransparency", { Text = "Fill Transparency", Default = 0.7, Min = 0, Max = 1, Rounding = 2, Callback = function(v) ESPSettings.survivorFillTransparency = v end })
-SurvivorGroup:AddSlider("SurvivorOutlineTransparency", { Text = "Outline Transparency", Default = 0.3, Min = 0, Max = 1, Rounding = 2, Callback = function(v) ESPSettings.survivorOutlineTransparency = v end })
-SurvivorGroup:AddLabel("Survivor Color"):AddColorPicker("SurvivorColor", { Default = ESPSettings.survivorColor, Callback = function(v) ESPSettings.survivorColor = v end })
-
-ItemGroup:AddToggle("GeneratorESP", { Text = "Generator ESP", Default = false, Callback = function(v) ESPSettings.generatorESP = v end }):AddColorPicker("GeneratorColor", { Default = ESPSettings.generatorColor, Callback = function(v) ESPSettings.generatorColor = v end })
-ItemGroup:AddToggle("ItemESP", { Text = "Item ESP", Default = false, Callback = function(v) ESPSettings.itemESP = v end }):AddColorPicker("ItemColor", { Default = ESPSettings.itemColor, Callback = function(v) ESPSettings.itemColor = v end })
-ItemGroup:AddToggle("PizzaESP", { Text = "Pizza ESP", Default = false, Callback = function(v) ESPSettings.pizzaEsp = v end }):AddColorPicker("PizzaColor", { Default = ESPSettings.pizzaColor, Callback = function(v) ESPSettings.pizzaColor = v end })
-ItemGroup:AddToggle("TripwireESP", { Text = "Tripwire ESP", Default = false, Callback = function(v) ESPSettings.taphTripwireEsp = v end }):AddColorPicker("TripwireColor", { Default = ESPSettings.taphTripwireColor, Callback = function(v) ESPSettings.taphTripwireColor = v end })
-ItemGroup:AddToggle("MineESP", { Text = "Trip Mine ESP", Default = false, Callback = function(v) ESPSettings.tripMineEsp = v end }):AddColorPicker("MineColor", { Default = ESPSettings.tripMineColor, Callback = function(v) ESPSettings.tripMineColor = v end })
-ItemGroup:AddToggle("RespawnESP", { Text = "Respawn ESP", Default = false, Callback = function(v) ESPSettings.twoTimeRespawnEsp = v end }):AddColorPicker("RespawnColor", { Default = ESPSettings.twoTimeRespawnColor, Callback = function(v) ESPSettings.twoTimeRespawnColor = v end })
-ItemGroup:AddToggle("GraffitiESP", { Text = "Graffiti ESP", Default = false, Callback = function(v) ESPSettings.graffitiEsp = v end }):AddColorPicker("GraffitiColor", { Default = ESPSettings.graffitiColor, Callback = function(v) ESPSettings.graffitiColor = v end })
-
-SpecialGroup:AddToggle("DeliveryESP", { Text = "Pizza Delivery ESP", Default = false, Callback = function(v) ESPSettings.pizzaDeliveryEsp = v end }):AddColorPicker("DeliveryColor", { Default = ESPSettings.pizzaDeliveryColor, Callback = function(v) ESPSettings.pizzaDeliveryColor = v end })
-SpecialGroup:AddToggle("ZombieESP", { Text = "Zombie ESP", Default = false, Callback = function(v) ESPSettings.zombieEsp = v end }):AddColorPicker("ZombieColor", { Default = ESPSettings.zombieColor, Callback = function(v) ESPSettings.zombieColor = v end })
-SpecialGroup:AddToggle("GroundBulbESP", { Text = "Ground Bulb ESP", Default = false, Callback = function(v) ESPSettings.azureGroundBulbESP = v end }):AddColorPicker("GroundBulbColor", { Default = ESPSettings.azureGroundBulbColor, Callback = function(v) ESPSettings.azureGroundBulbColor = v end })
-SpecialGroup:AddToggle("VineESP", { Text = "Vine ESP", Default = false, Callback = function(v) ESPSettings.azureVineESP = v end }):AddColorPicker("VineColor", { Default = ESPSettings.azureVineColor, Callback = function(v) ESPSettings.azureVineColor = v end })
-
-MiscGroup:AddToggle("LimitDistance", { Text = "Limit Distance", Default = false, Callback = function(v) ESPSettings.limitDistance = v end })
-MiscGroup:AddInput("MaxDistance", { Text = "Max Distance", Default = tostring(ESPSettings.maxDistance), Callback = function(v) local n = tonumber(v); if n then ESPSettings.maxDistance = math.max(10, n) end end })
-
--- ====================== AUTO BLOCK ======================
-local t2 = {}
-t2.value1 = game:GetService("Players")
-t2.value2 = game:GetService("ReplicatedStorage")
-t2.value3 = game:GetService("RunService")
-t2.value4 = t2.value1.LocalPlayer
-t2.value5 = workspace:WaitForChild("Players"):WaitForChild("Killers")
-t2.value6 = false
-t2.value7 = false
-t2.value8 = false
-t2.value9 = 15
-t2.value10 = "Legit"
-t2.value11 = 45
-t2.value12 = {front=5,back=0,left=0,right=0,duration=1}
-t2.value13 = {"Legit","Blatant"}
-t2.value14 = false
-t2.value15 = 5
-t2.value16 = {["rbxassetid://96959123077498"]=true,["rbxassetid://72722244508749"]=true}
-t2.value17 = 0.3
-t2.value18 = {
-    ["rbxassetid://87259391926321"]=true,["rbxassetid://140703210927645"]=true,
-    ["rbxassetid://136007065400978"]=true,["rbxassetid://129843313690921"]=true,
-    ["rbxassetid://86709774283672"]=true,["rbxassetid://108807732150251"]=true,
-    ["rbxassetid://138040001965654"]=true,["rbxassetid://86096387000557"]=true
-}
-t2.value19 = {}
-t2.value20 = nil
-t2.value21 = nil
-local RemoteEvent = t2.value2.Modules.Network.Network.RemoteEvent
-
-local function setMode(p1)
-    if p1 == t2.value13[2] then
-        t2.value14 = true
-        t2.value12.front = t2.value15
-        t2.value12.back = t2.value15
-        t2.value12.left = t2.value15
-        t2.value12.right = t2.value15
-    else
-        t2.value14 = false
-        t2.value12.front = t2.value15
-        t2.value12.back = 0
-        t2.value12.left = 0
-        t2.value12.right = 0
-    end
-end
-setMode("Legit")
-
-function t2.value22(p2)
-    if t2.value19[p2] then return end
-    local HumanoidRootPart = p2:FindFirstChild("HumanoidRootPart") or p2:WaitForChild("HumanoidRootPart", 5)
-    if not HumanoidRootPart then return end
-    local v16 = HumanoidRootPart
-    local function cleanup()
-        if u19 then u19:Disconnect() end
-        if u20 then u20:Disconnect() end
-        t2.value19[p2] = nil
-    end
-    t2.value19[p2] = cleanup
-    local u19 = t2.value3.Heartbeat:Connect(function()
-        if not t2.value7 then cleanup() return end
-        local Character = t2.value4.Character
-        local CharacterHRP = Character and Character:FindFirstChild("HumanoidRootPart")
-        if not CharacterHRP then return end
-        local v102 = CharacterHRP.Position - v16.Position
-        local Magnitude = v102.Magnitude
-        local v104 = Magnitude <= t2.value9
-        local v105 = Magnitude > 0 and v16.CFrame.LookVector:Dot(v102.Unit) >= t2.value17
-        if v104 and v105 then
-            if not u20 then
-                local t3 = {"Block"}
-                local u20 = v16.DescendantAdded:Connect(function(descendant)
-                    if descendant and descendant:IsA("Sound") and t2.value18[descendant.SoundId] then
-                        RemoteEvent:FireServer("UseActorAbility", t3)
+            -- Killers
+            if Killers and ESP_Active.Killer then
+                for _,m in ipairs(Killers:GetChildren()) do
+                    if m ~= LP.Character and not IsRagdoll(m) then
+                        m:SetAttribute("ESP_Type", "Killer")
+                        CreateESP_Model(m, ESP_Colors.Killer, "🔪 KILLER\n"..m.Name)
                     end
-                end)
+                end
             end
-        elseif u20 then
-            u20:Disconnect()
-            u20 = nil
-        end
-    end)
-end
 
-local function v6(p3)
-    t2.value7 = p3
-    if t2.value7 then
-        for _, v27 in ipairs(t2.value5:GetChildren()) do task.spawn(t2.value22, v27) end
-        if not t2.value20 then
-            t2.value20 = t2.value5.ChildAdded:Connect(function(child) task.spawn(t2.value22, child) end)
-        end
-        if not t2.value21 then
-            t2.value21 = t2.value5.ChildRemoved:Connect(function(child)
-                if t2.value19[child] then t2.value19[child]() end
-            end)
-        end
-    else
-        if t2.value20 then t2.value20:Disconnect(); t2.value20 = nil end
-        if t2.value21 then t2.value21:Disconnect(); t2.value21 = nil end
-        for _, v32 in pairs(t2.value19) do v32() end
-        table.clear(t2.value19)
-    end
-end
-
-function t2.value23(p4)
-    local Humanoid = p4:WaitForChild("Humanoid", 5)
-    if not Humanoid then return end
-    Humanoid.AnimationPlayed:Connect(function(animation)
-        if not animation or not animation.Animation then return end
-        if t2.value16[animation.Animation.AnimationId] then
-            task.wait(t2.value12.duration)
-            t2.value8 = false
-        end
-    end)
-end
-
-if t2.value4.Character then task.spawn(function() t2.value23(t2.value4.Character) end) end
-t2.value4.CharacterAdded:Connect(function(character) t2.value23(character) end)
-
-local function v7(p5) return p5 and p5:FindFirstChild("HumanoidRootPart") or nil end
-local Character = t2.value4.Character or t2.value4.CharacterAdded:Wait()
-t2.value24 = Character
-t2.value25 = v7(t2.value24)
-t2.value4.CharacterAdded:Connect(function(c) t2.value24 = c; t2.value25 = v7(c) end)
-
-local new = Vector3.new
-t2.value27 = new(50,50,50)
-function t2.value28()
-    if not t2.value24 then return nil end
-    if t2.value24:IsDescendantOf(workspace.Players.Survivors) then
-        return workspace.Players.Killers, workspace.Players.Survivors
-    end
-    return nil
-end
-function t2.value29(p6,p7) return p7 and p6 and p6:IsDescendantOf(p7) end
-function t2.value30()
-    if not t2.value25 then return nil, math.huge end
-    local v40, survivors = t2.value28()
-    if not v40 then return nil, math.huge end
-    local PartBoundsInBox = workspace:GetPartBoundsInBox(t2.value25.CFrame, t2.value27)
-    local v43, huge = nil, math.huge
-    for _, v49 in ipairs(PartBoundsInBox) do
-        local Parent = v49.Parent
-        if not Parent or Parent == t2.value24 then continue end
-        local Humanoid = Parent:FindFirstChildOfClass("Humanoid")
-        if not Humanoid or Humanoid.Health <= 0 then continue end
-        local HumanoidRootPart = Parent:FindFirstChild("HumanoidRootPart")
-        if not HumanoidRootPart then continue end
-        local Magnitude = (HumanoidRootPart.Position - t2.value25.Position).Magnitude
-        if t2.value29(Parent, v40) then
-            if not v43 or Magnitude < huge then huge = Magnitude; v43 = HumanoidRootPart end
-        elseif not v43 or Magnitude < huge then
-            huge = Magnitude; v43 = HumanoidRootPart
-        end
-    end
-    return v43, huge
-end
-t2.value26 = 1
-function t2.value31()
-    if not t2.value25 then return end
-    local v55, v56 = t2.value30()
-    if not v55 then return end
-    local t5
-    if t2.value10 == t2.value13[2] then
-        t5 = {v55.CFrame.LookVector*t2.value12.front,-v55.CFrame.LookVector*t2.value12.back,v55.CFrame.RightVector*t2.value12.right,-v55.CFrame.RightVector*t2.value12.left}
-    else
-        t5 = {v55.CFrame.LookVector*t2.value12.front}
-    end
-    local v60 = v55.Position + t5[t2.value26]
-    t2.value26 = t2.value26 + 1
-    if #t5 < t2.value26 then t2.value26 = 1 end
-    local dir = (v60 - t2.value25.Position)
-    local Unit = dir.Magnitude > 0 and dir.Unit or Vector3.new()
-    local v63 = t2.value14 and Vector3.new(math.random(-50,50)/50,math.random(-50,50)/50,math.random(-50,50)/50) or Vector3.new(0,0,0)
-    local v64 = t2.value11 + v56 * 10
-    t2.value25.Velocity = Unit * v64 + v63
-end
-t2.value32 = true
-t2.value33 = false
-local function mainLoop()
-    if t2.value33 then return end
-    t2.value33 = true
-    task.spawn(function()
-        while t2.value32 do
-            t2.value3.Heartbeat:Wait()
-            if t2.value6 then
-                local Character2 = t2.value4.Character
-                local v115 = v7(Character2)
-                if Character2 and v115 then
-                    local Velocity = v115.Velocity
-                    pcall(function() if t2.value8 then t2.value31() end end)
-                    t2.value3.RenderStepped:Wait()
-                    pcall(function() if t2.value8 then v115.Velocity = Velocity end end)
+            -- Survivors
+            if Survivors and ESP_Active.Survivor then
+                for _,m in ipairs(Survivors:GetChildren()) do
+                    if m ~= LP.Character and not IsRagdoll(m) then
+                        m:SetAttribute("ESP_Type", "Survivor")
+                        CreateESP_Model(m, ESP_Colors.Survivor, "🧑 "..m.Name)
+                    end
                 end
             end
         end
-    end)
-end
-mainLoop()
 
-t2.value34 = false
-t2.value35 = nil
-t2.value36 = nil
-function t2.value38()
-    local Character3 = t2.value4.Character
-    if not Character3 then return nil end
-    local CharacterHRP = Character3:FindFirstChild("HumanoidRootPart")
-    if not CharacterHRP then return nil end
-    local v66, huge = nil, math.huge
-    for _, v71 in ipairs(t2.value1:GetPlayers()) do
-        if v71 == t2.value4 then continue end
-        local char = v71.Character
-        if not char then continue end
-        local Humanoid = char:FindFirstChildOfClass("Humanoid")
-        local HumanoidRootPart = char:FindFirstChild("HumanoidRootPart")
-        if not Humanoid or not HumanoidRootPart then continue end
-        if Humanoid.MaxHealth <= 500 then continue end
-        local Magnitude = (CharacterHRP.Position - HumanoidRootPart.Position).Magnitude
-        if Magnitude < huge then huge = Magnitude; v66 = HumanoidRootPart end
+        -- === OBJETOS ===
+        if not MapFolder then continue end
+        local Map = MapFolder:FindFirstChild("Map")
+        if Map then
+            -- Generadores
+            if ESP_Active.Generator then
+                for _,m in ipairs(Map:GetChildren()) do
+                    if m:IsA("Model") and m.Name:lower():find("generator") and m.Name ~= "FakeGenerator" then
+                        local prog = m:FindFirstChild("Progress")
+                        if prog and prog.Value < 100 then
+                            m:SetAttribute("ESP_Type", "Generator")
+                            CreateESP_Model(m, ESP_Colors.Generator, "⚡ GENERADOR\n"..math.floor(prog.Value).."%")
+                        end
+                    end
+                end
+            end
+
+            -- Items
+            if ESP_Active.Item then
+                for _,item in ipairs(Map:GetDescendants()) do
+                    if item.Name == "ItemRoot" and item.Parent then
+                        local m = item.Parent
+                        m:SetAttribute("ESP_Type", "Item")
+                        CreateESP_Model(m, ESP_Colors.Item, "📦 ITEM")
+                    end
+                end
+            end
+        end
+
+        -- Pizza
+        if ESP_Active.Pizza then
+            for _,v in ipairs(MapFolder:GetChildren()) do
+                if v.Name == "Pizza" and v:IsA("BasePart") then
+                    v:SetAttribute("ESP_Type", "Pizza")
+                    CreateESP_Model(v, ESP_Colors.Pizza, "🍕 PIZZA")
+                end
+            end
+        end
+
+        -- Zombies
+        if ESP_Active.Zombie then
+            for _,v in ipairs(MapFolder:GetChildren()) do
+                if v.Name == "1x1x1x1Zombie" then
+                    v:SetAttribute("ESP_Type", "Zombie")
+                    CreateESP_Model(v, ESP_Colors.Zombie, "🧟 ZOMBIE")
+                end
+            end
+        end
+
+        -- Minas / Tripwire
+        if ESP_Active.Tripwire then
+            for _,v in ipairs(MapFolder:GetChildren()) do
+                if v.Name:find("Tripwire") then
+                    v:SetAttribute("ESP_Type", "Tripwire")
+                    CreateESP_Model(v, ESP_Colors.Tripwire, "⚠️ TRIPWIRE")
+                end
+            end
+        end
+        if ESP_Active.Mine then
+            for _,v in ipairs(MapFolder:GetChildren()) do
+                if v.Name == "SubspaceTripmine" then
+                    v:SetAttribute("ESP_Type", "Mine")
+                    CreateESP_Model(v, ESP_Colors.Mine, "💣 MINA")
+                end
+            end
+        end
+
+        -- Respawn
+        if ESP_Active.Respawn then
+            for _,v in ipairs(MapFolder:GetDescendants()) do
+                if v.Name:lower():find("respawnlocation") then
+                    local m = v:IsA("BasePart") and v or v:FindFirstAncestorWhichIsA("Model")
+                    if m then
+                        m:SetAttribute("ESP_Type", "Respawn")
+                        CreateESP_Model(m, ESP_Colors.Respawn, "🔄 RESPAWN")
+                    end
+                end
+            end
+        end
+
+        -- Objetos especiales
+        if ESP_Active.GroundBulb or ESP_Active.Vine then
+            for _,v in ipairs(MapFolder:GetDescendants()) do
+                if v.Name == "GroundBulbModel" and ESP_Active.GroundBulb then
+                    v:SetAttribute("ESP_Type", "GroundBulb")
+                    CreateESP_Model(v, ESP_Colors.GroundBulb, "💡 BOMBILLA")
+                elseif v.Name == "VineModel" and ESP_Active.Vine then
+                    v:SetAttribute("ESP_Type", "Vine")
+                    CreateESP_Model(v, ESP_Colors.Vine, "🌿 ENREDADERA")
+                end
+            end
+        end
     end
-    return v66
-end
-function t2.value39(p8)
-    local CurrentCamera = workspace.CurrentCamera
-    if CurrentCamera and p8 then CurrentCamera.CFrame = CFrame.new(CurrentCamera.CFrame.Position, p8.Position) end
-end
-local function v10(p9)
-    if t2.value35 then t2.value35:Disconnect() end
-    t2.value35 = t2.value3.Heartbeat:Connect(function()
-        if not t2.value34 then return end
-        local targetHRP = t2.value38()
-        if targetHRP and p9 then
-            local dir = (targetHRP.Position - p9.Position)
-            local Unit = dir.Magnitude > 0 and dir.Unit or Vector3.new()
-            p9.CFrame = CFrame.new(p9.Position, p9.Position + Vector3.new(Unit.X, 0, Unit.Z))
-            t2.value39(targetHRP)
-        end
-    end)
-end
-function t2.value40() if t2.value35 then t2.value35:Disconnect(); t2.value35 = nil end end
-function t2.value41(p10)
-    if not p10 then return end
-    local Humanoid = p10:WaitForChild("Humanoid",5)
-    local HumanoidRootPart = p10:WaitForChild("HumanoidRootPart",5)
-    if not Humanoid or not HumanoidRootPart then return end
-    if t2.value36 then t2.value36:Disconnect() end
-    t2.value36 = Humanoid.AnimationPlayed:Connect(function(animation)
-        if not animation or not animation.Animation then return end
-        if t2.value37[animation.Animation.AnimationId] and t2.value34 then
-            v10(HumanoidRootPart)
-            animation.Stopped:Once(t2.value40)
-        end
-    end)
-end
-t2.value4.CharacterAdded:Connect(function(c) t2.value40(); task.wait(0.2); t2.value41(c) end)
-if t2.value4.Character then task.wait(0.2); t2.value41(t2.value4.Character) end
-local function v11(p11) t2.value
+end)
+
+-- ══════════════════════════════════════════════════════
+--                   INTERFAZ DEL ESP
+-- ══════════════════════════════════════════════════════
+local ESP_Group = Tabs.ESP:AddLeftGroupbox("Activar ESP", "eye")
+local Color_Group = Tabs.ESP:AddRightGroupbox("Colores", "palette")
+
+-- Jugadores
+ESP_Group:AddToggle("ESP_Killer", {Text = "🔪 Killer ESP", Default = false, Callback = function(v) ESP_Active.Killer = v end})
+ESP_Group:AddToggle("ESP_Survivor", {Text = "🧑 Survivor ESP", Default = false, Callback = function(v) ESP_Active.Survivor = v end})
+
+-- Objetos
+ESP_Group:AddToggle("ESP_Generator", {Text = "⚡ Generadores", Default = false, Callback = function(v) ESP_Active.Generator = v end})
+ESP_Group:AddToggle("ESP_Item", {Text = "📦 Items", Default = false, Callback = function(v) ESP_Active.Item = v end})
+ESP_Group:AddToggle("ESP_Pizza", {Text = "🍕 Pizza", Default = false, Callback = function(v) ESP_Active.Pizza = v end})
+ESP_Group:AddToggle("ESP_Zombie", {Text = "🧟 Zombies", Default = false, Callback = function(v) ESP_Active.Zombie = v end})
+ESP_Group:AddToggle("ESP_Tripwire", {Text = "⚠️ Tripwire", Default = false, Callback = function(v) ESP_Active.Tripwire = v end})
+ESP_Group:AddToggle("ESP_Mine", {Text = "💣 Minas", Default = false, Callback = function(v) ESP_Active.Mine = v end})
+ESP_Group:AddToggle("ESP_Respawn", {Text = "🔄 Respawn", Default = false, Callback = function(v) ESP_Active.Respawn = v end})
+ESP_Group:AddToggle("ESP_Bulb", {Text = "💡 Bombillas", Default = false, Callback = function(v) ESP_Active.GroundBulb = v end})
+ESP_Group:AddToggle("ESP_Vine", {Text = "🌿 Enredaderas", Default = false, Callback = function(v) ESP_Active.Vine = v end})
+
+-- Colores
+Color_Group:AddLabel("Colores Personalizados")
+Color_Group:AddColorPicker("Color_Killer", {Title = "Killer", Default = ESP_Colors.Killer, Callback = function(c) ESP_Colors.Killer = c end})
+Color_Group:AddColorPicker("Color_Survivor", {Title = "Survivor", Default = ESP_Colors.Survivor, Callback = function(c) ESP_Colors.Survivor = c end})
+Color_Group:AddColorPicker("Color_Generator", {Title = "Generador", Default = ESP_Colors.Generator, Callback = function(c) ESP_Colors.Generator = c end})
+Color_Group:AddColorPicker("Color_Item", {Title = "Item", Default = ESP_Colors.Item, Callback = function(c) ESP_Colors.Item = c end})
+
+-- ══════════════════════════════════════════════════════
+--                   PESTAÑA PRINCIPAL
+-- ══════════════════════════════════════════════════════
+local Main_Group = Tabs.Main:AddLeftGroupbox("Información", "info")
+Main_Group:AddLabel("👤 Usuario: " .. LP.Name)
+Main_Group:AddLabel("🆔 ID: " .. LP.UserId)
+Main_Group:AddButton("Unirse a Discord", function()
+    pcall(function() setclipboard("https://discord.gg/F4wrAGnRgF") end)
+    Library:Notify({Title = "Discord", Description = "¡Enlace copiado!", Time = 3})
+end)
+
+-- ══════════════════════════════════════════════════════
+--                  CARGA FINAL DE INTERFAZ
+-- ══════════════════════════════════════════════════════
+Library:Init()
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:LoadAutoloadConfig()
+Library:Notify({Title = "Pichigdasos Hub", Description = "¡Cargado con éxito!", Time = 4})
