@@ -1,1593 +1,396 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local TextChatService = game:GetService("TextChatService")
 local HttpService = game:GetService("HttpService")
 local Workspace = game:GetService("Workspace")
-local Stats = game:GetService("Stats")
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then return end
-
-local NoclipEnabled = false
-local PlayerSpeed = 16
-local NoclipLoop
-local antiFlingEnabled = false
-local antiFlingConnection
-local playerData = {}
-local playerESP = false
-local hideMeEsp = false
-local gunDropESP = false
-local trapDetection = false
-local autoGetDroppedGun = false
-local ignoreKnifeThrow = false
-local spawnAtPlayer = false
-local loopThrow = false
-local timerText, timerTask, killAuraConnection
 
 local Window = Rayfield:CreateWindow({
     Name = "Chituk Hub",
     LoadingTitle = "Chituk Hub",
-    LoadingSubtitle = "MM2",
-    ConfigurationSaving = {
-        Enabled = false,
-        FolderName = nil,
-        FileName = nil
-    }
+    LoadingSubtitle = "Optimizado",
+    ConfigurationSaving = {Enabled = false, FolderName = nil, FileName = nil}
 })
+
 local MainTab = Window:CreateTab("Principal")
-local ESPTab = Window:CreateTab("ESP")
+local ESPTab = Window:CreateTab("ESP / Visuales")
 local SheriffTab = Window:CreateTab("Sheriff")
 local MurdererTab = Window:CreateTab("Asesino")
+local AnimTab = Window:CreateTab("Animaciones")
 local TeleportTab = Window:CreateTab("Teletransporte")
-local TrollTab = Window:CreateTab("Troll")
 local AutoFarmTab = Window:CreateTab("AutoFarm")
-local CreditsTab = Window:CreateTab("Creditos")
+local CreditsTab = Window:CreateTab("Créditos")
 
-local function Notify(texto)
-    Rayfield:Notify({
-        Title = "Chituk Hub",
-        Content = tostring(texto),
-        Duration = 3
-    })
+local function Notify(msg)
+    Rayfield:Notify({Title = "Chituk Hub", Content = msg, Duration = 3})
 end
 
-local StatsGui = Instance.new("ScreenGui")
-StatsGui.Name = "Chituk_Stats"
-StatsGui.ResetOnSpawn = false
-StatsGui.Parent = game:GetService("CoreGui")
-
-local StatsLabel = Instance.new("TextLabel")
-StatsLabel.BackgroundTransparency = 1
-StatsLabel.Position = UDim2.fromScale(0.015, 0.02)
-StatsLabel.Size = UDim2.new(0, 220, 0, 60)
-StatsLabel.Font = Enum.Font.GothamBold
-StatsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-StatsLabel.TextStrokeTransparency = 0
-StatsLabel.TextStrokeColor3 = Color3.fromRGB(20, 20, 20)
-StatsLabel.TextScaled = true
-StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatsLabel.Parent = StatsGui
+local StatsUI = Instance.new("ScreenGui")
+StatsUI.Name = "CoreStats"
+StatsUI.ResetOnSpawn = false
+StatsUI.Parent = game:GetService("CoreGui")
+local StatLabel = Instance.new("TextLabel")
+StatLabel.BackgroundTransparency = 1
+StatLabel.Position = UDim2.fromScale(0.015, 0.02)
+StatLabel.Size = UDim2.new(0, 210, 0, 55)
+StatLabel.Font = Enum.Font.GothamBold
+StatLabel.TextColor3 = Color3.new(1,1,1)
+StatLabel.TextStrokeTransparency = 0
+StatLabel.TextStrokeColor3 = Color3.new(15,15,15)
+StatLabel.TextScaled = true
+StatLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatLabel.Parent = StatsUI
 
 task.spawn(function()
-    local ultimo = tick()
-    local cuadros = 0
-    while StatsGui do
-        cuadros += 1
-        if tick() - ultimo >= 1 then
-            local pingMs = math.floor(LocalPlayer:GetNetworkPing() * 1000 + 0.5)
-            StatsLabel.Text = string.format("FPS: %d | PING: %d ms", cuadros, pingMs)
-            cuadros = 0
-            ultimo = tick()
+    local last = tick()
+    local fps = 0
+    while StatsUI do
+        fps += 1
+        if tick() - last >= 1 then
+            local ping = math.floor(LocalPlayer:GetNetworkPing()*1000 + 0.5)
+            StatLabel.Text = "FPS: "..fps.." | PING: "..ping.." ms"
+            fps = 0 last = tick()
         end
         RunService.RenderStepped:Wait()
     end
 end)
 
-local function ToggleNoclip(estado)
-    NoclipEnabled = estado
-    if NoclipLoop then NoclipLoop:Disconnect(); NoclipLoop = nil end
-    if estado then
-        Notify("Noclip: ACTIVADO")
-        NoclipLoop = RunService.Stepped:Connect(function()
-            local personaje = LocalPlayer.Character
-            if not personaje then return end
-            local raiz = personaje:FindFirstChild("HumanoidRootPart")
-            local hum = personaje:FindFirstChild("Humanoid")
-            if raiz and hum then
-                raiz.CanCollide = false
-                hum.AutoRotate = true
+local NoclipActive = false
+local SpeedWalk = 16
+local NoclipConn
+
+local function SetNoclip(state)
+    NoclipActive = state
+    if NoclipConn then NoclipConn:Disconnect() end
+    if state then
+        Notify("Noclip activado")
+        NoclipConn = RunService.Stepped:Connect(function()
+            local c = LocalPlayer.Character
+            if c and c:FindFirstChild("HumanoidRootPart") then
+                c.HumanoidRootPart.CanCollide = false
+                if c:FindFirstChild("Humanoid") then c.Humanoid.AutoRotate = true end
             end
         end)
     else
-        Notify("Noclip: DESACTIVADO")
+        Notify("Noclip desactivado")
         task.spawn(function()
-            local personaje = LocalPlayer.Character
-            if not personaje then return end
-            local raiz = personaje:FindFirstChild("HumanoidRootPart")
-            if raiz then raiz.CanCollide = true end
+            local c = LocalPlayer.Character
+            if c and c:FindFirstChild("HumanoidRootPart") then c.HumanoidRootPart.CanCollide = true end
         end)
     end
 end
 
-local function SetPlayerSpeed(val)
-    PlayerSpeed = val
-    local personaje = LocalPlayer.Character
-    if personaje then
-        local hum = personaje:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = val end
-    end
+local function SetSpeed(v)
+    SpeedWalk = v
+    local c = LocalPlayer.Character
+    if c and c:FindFirstChild("Humanoid") then c.Humanoid.WalkSpeed = v end
 end
 
-LocalPlayer.CharacterAdded:Connect(function(pers)
-    task.wait(0.1)
-    local hum = pers:FindFirstChildOfClass("Humanoid")
-    if hum then hum.WalkSpeed = PlayerSpeed end
-    if NoclipEnabled then
-        local raiz = pers:FindFirstChild("HumanoidRootPart")
-        if raiz then raiz.CanCollide = false end
-    end
+LocalPlayer.CharacterAdded:Connect(function(chr)
+    task.wait(0.12)
+    if chr:FindFirstChild("Humanoid") then chr.Humanoid.WalkSpeed = SpeedWalk end
+    if NoclipActive and chr:FindFirstChild("HumanoidRootPart") then chr.HumanoidRootPart.CanCollide = false end
 end)
 
-local function getPlayerRole(player)
-    if not player or not player.Character then return "Inocente" end
-    local char = player.Character
-    local backpack = player:FindFirstChild("Backpack")
-    for _, obj in pairs(char:GetChildren()) do
-        if obj:IsA("Tool") then
-            local name = obj.Name:lower()
-            if name:find("knife") or name:find("faca") then
-                return "Murderer"
-            elseif name:find("gun") or name:find("arma") or name:find("revolver") then
-                return "Sheriff"
+local AntiFlingConn
+local function AntiFlingToggle(state)
+    if AntiFlingConn then AntiFlingConn:Disconnect() end
+    if not state then return end
+    Notify("Anti‑Fling activado")
+    AntiFlingConn = RunService.Heartbeat:Connect(function()
+        local c = LocalPlayer.Character
+        if c and c:FindFirstChild("HumanoidRootPart") then
+            local root = c.HumanoidRootPart
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+            for _,item in pairs(root:GetChildren()) do
+                if item:IsA("BodyVelocity") or item:IsA("BodyPosition") or item:IsA("BodyGyro") then item:Destroy() end
             end
         end
-    end
-    if backpack then
-        for _, obj in pairs(backpack:GetChildren()) do
-            if obj:IsA("Tool") then
-                local name = obj.Name:lower()
-                if name:find("knife") or name:find("faca") then
-                    return "Murderer"
-                elseif name:find("gun") or name:find("arma") or name:find("revolver") then
-                    return "Sheriff"
-                end
-            end
-        end
-    end
-    return "Inocente"
+    end)
 end
 
 local ESP = {}
 ESP.__index = ESP
 function ESP.new()
-    local self = setmetatable({}, ESP)
-    self.Groups = {}
-    self.Indicators = {}
-    self.Gui = Instance.new("ScreenGui")
-    self.Gui.Name = "ChitukESP"
-    self.Gui.ResetOnSpawn = false
-    self.Gui.IgnoreGuiInset = true
-    self.Gui.Parent = game:GetService("CoreGui")
-    self.ArrowTpl = Instance.new("ImageLabel")
-    self.ArrowTpl.Size = UDim2.fromOffset(40, 40)
-    self.ArrowTpl.AnchorPoint = Vector2.new(0.5, 0.5)
-    self.ArrowTpl.BackgroundTransparency = 1
-    self.ArrowTpl.Image = "rbxassetid://97136202386756"
-    self.ArrowTpl.Visible = false
-    self.ArrowTpl.Parent = self.Gui
-    self.RenderConn = RunService.RenderStepped:Connect(function() self:Update() end)
+    local self = setmetatable({},{__index=ESP})
+    self.Groups = {} self.Objects = {}
+    self.UI = Instance.new("ScreenGui")
+    self.UI.Name = "ChitukESP_Clean"
+    self.UI.ResetOnSpawn = false
+    self.UI.IgnoreGuiInset = true
+    self.UI.Parent = game:GetService("CoreGui")
+    self.ArrowBase = Instance.new("ImageLabel")
+    self.ArrowBase.Size = UDim2.fromOffset(42,42)
+    self.ArrowBase.AnchorPoint = Vector2.new(0.5,0.5)
+    self.ArrowBase.BackgroundTransparency = 1
+    self.ArrowBase.Image = "rbxassetid://97136202386756"
+    self.ArrowBase.Visible = false
+    self.ArrowBase.Parent = self.UI
+    self.UpdateConn = RunService.RenderStepped:Connect(function() self:Refresh() end)
     return self
 end
-function ESP:AddGroup(name)
-    if not self.Groups[name] then self.Groups[name] = {Enabled = true, Targets = {}} end
-    return self.Groups[name]
-end
-function ESP:Add(obj, data)
+function ESP:Add(obj,opts)
     if not obj then return end
     self:Remove(obj)
-    data = data or {}
-    self.Indicators[obj] = {Data = data}
-    local color = data.Color or Color3.new(1, 1, 0)
+    opts = opts or {}
+    local color = opts.Color or Color3.new(1,0,0)
     local hl = Instance.new("Highlight")
-    hl.Name = "ChitukHL_" .. HttpService:GenerateGUID(false)
-    hl.Adornee = obj
-    hl.FillColor = color
-    hl.OutlineColor = color
-    hl.FillTransparency = data.FillTrans or 0.7
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Parent = self.Gui
-    local arrow, scale, distLab
-    if data.ShowArrow then
-        arrow = self.ArrowTpl:Clone()
-        arrow.Visible = true
-        arrow.ImageColor3 = color
-        arrow.Parent = self.Gui
-        scale = Instance.new("UIScale")
-        scale.Scale = 1
-        scale.Parent = arrow
-        if data.ShowDist ~= false then
+    hl.Adornee = obj hl.FillColor = color hl.OutlineColor = color
+    hl.FillTransparency = opts.FillTrans or 0.68 hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop hl.Parent = self.UI
+    local arrow,scale,distLab
+    if opts.Arrow then
+        arrow = self.ArrowBase:Clone()
+        arrow.ImageColor3 = color arrow.Visible = true arrow.Parent = self.UI
+        scale = Instance.new("UIScale") scale.Parent = arrow
+        if opts.ShowDist~=false then
             distLab = Instance.new("TextLabel")
-            distLab.BackgroundTransparency = 1
-            distLab.Font = Enum.Font.Montserrat
-            distLab.TextColor3 = color
-            distLab.TextSize = 18
-            distLab.Size = UDim2.fromOffset(80, 24)
-            distLab.Position = UDim2.new(0.5, 0, 1, 5)
-            distLab.AnchorPoint = Vector2.new(0.5, 0)
+            distLab.BackgroundTransparency = 1 distLab.Font = Enum.Font.Montserrat
+            distLab.TextColor3 = color distLab.TextSize = 17
+            distLab.Size = UDim2.fromOffset(85,24)
+            distLab.Position = UDim2.new(0.5,0,1,4) distLab.AnchorPoint = Vector2.new(0.5,0)
             distLab.Parent = arrow
         end
     end
     local bill
-    if data.ShowLabel then
+    if opts.Label then
         bill = Instance.new("BillboardGui")
-        bill.Adornee = obj
-        bill.AlwaysOnTop = true
-        bill.MaxDistance = 99999
-        bill.Size = UDim2.fromOffset(120, 45)
-        bill.StudsOffset = Vector3.new(0, 2.2, 0)
+        bill.Adornee = obj bill.AlwaysOnTop = true bill.MaxDistance = 800
+        bill.Size = UDim2.fromOffset(110,42) bill.StudsOffset = Vector3.new(0,2.1,0)
         local txt = Instance.new("TextLabel")
-        txt.Size = UDim2.fromScale(1, 1)
-        txt.BackgroundTransparency = 1
-        txt.TextScaled = true
-        txt.Font = Enum.Font.SourceSansBold
-        txt.TextColor3 = color
-        txt.Text = data.Label or ""
-        Instance.new("UIStroke").Parent = txt
-        txt.Parent = bill
-        bill.Parent = self.Gui
+        txt.Size = UDim2.fromScale(1,1) txt.BackgroundTransparency = 1
+        txt.TextScaled = true txt.Font = Enum.Font.GothamBold txt.Text = opts.Text or ""
+        txt.TextColor3 = color txt.Parent = bill bill.Parent = self.UI
     end
-    self.Indicators[obj].Highlight = hl
-    self.Indicators[obj].Arrow = arrow
-    self.Indicators[obj].Scale = scale
-    self.Indicators[obj].DistLabel = distLab
-    self.Indicators[obj].Billboard = bill
-    if data.Group then
-        local g = self:AddGroup(data.Group)
-        table.insert(g.Targets, obj)
-        if not g.Enabled then
-            hl.Enabled = false
-            if arrow then arrow.Visible = false end
-        end
-    end
+    self.Objects[obj] = {Highlight=hl,Arrow=arrow,Scale=scale,Dist=distLab,Bill=bill,Data=opts}
 end
 function ESP:Remove(obj)
-    local ref = self.Indicators[obj]
-    if not ref then return end
+    local ref = self.Objects[obj] if not ref then return end
     if ref.Highlight then ref.Highlight:Destroy() end
     if ref.Arrow then ref.Arrow:Destroy() end
-    if ref.Billboard then ref.Billboard:Destroy() end
-    for _, g in pairs(self.Groups) do
-        for i = #g.Targets, 1, -1 do
-            if g.Targets[i] == obj then table.remove(g.Targets, i) end
-        end
-    end
-    self.Indicators[obj] = nil
+    if ref.Bill then ref.Bill:Destroy() end
+    self.Objects[obj] = nil
 end
-function ESP:ClearGroup(name)
-    local g = self.Groups[name]
-    if not g then return end
-    for _, t in pairs(g.Targets) do self:Remove(t) end
-    self.Groups[name] = nil
-end
-function ESP:Update()
-    local cam = Workspace.CurrentCamera
-    if not cam then return end
-    local viewSize = cam.ViewportSize
-    local pad = 45
-    for obj, ind in pairs(self.Indicators) do
-        if ind.Arrow and ind.Scale then
-            local pos
-            if obj:IsA("Model") then
-                pos = obj.PrimaryPart and obj.PrimaryPart.Position or obj:GetPivot().Position
-            elseif obj:IsA("BasePart") then
-                pos = obj.Position
-            end
-            if pos then
-                local scr, vis = cam:WorldToViewportPoint(pos)
-                local dist = (cam.CFrame.Position - pos).Magnitude
-                local minD = ind.Data.MinArrowDist or 0
-                if vis and dist > minD then
-                    ind.Scale.Scale = 0
-                else
-                    local center = Vector2.new(viewSize.X / 2, viewSize.Y / 2)
-                    local sp = cam.CFrame:VectorToObjectSpace(pos - cam.CFrame.Position)
-                    local flat = Vector2.new(sp.X, sp.Y)
-                    if flat.Magnitude == 0 then continue end
-                    flat = flat.Unit
-                    local wLim = math.max(viewSize.X - pad * 2, 1)
-                    local hLim = math.max(viewSize.Y - pad * 2, 1)
-                    local off
-                    if math.abs(flat.Y) > hLim / wLim then
-                        off = flat * (hLim / 2 / math.max(math.abs(flat.Y), 0.001))
-                    else
-                        off = flat * (wLim / 2 / math.max(math.abs(flat.X), 0.001))
-                    end
-                    ind.Arrow.Position = UDim2.fromOffset(center.X + off.X, center.Y - off.Y)
-                    ind.Arrow.Rotation = math.deg(math.atan2(flat.X, flat.Y))
-                    ind.Scale.Scale = 1
-                    if ind.DistLabel then ind.DistLabel.Text = math.floor(dist) .. "m" end
-                end
+function ESP:Refresh()
+    local cam = Workspace.CurrentCamera if not cam then return end
+    local size = cam.ViewportSize local pad = 48
+    for obj,info in pairs(self.Objects) do
+        if not obj:IsDescendantOf(Workspace) then self:Remove(obj) continue end
+        local pos = obj:IsA("Model") and obj.PrimaryPart and obj.PrimaryPart.Position or obj:IsA("BasePart") and obj.Position
+        if not pos then continue end
+        local scrPt,vis = cam:WorldToViewportPoint(pos)
+        local dist = (cam.CFrame.Position - pos).Magnitude
+        if info.Arrow and info.Scale then
+            if vis then info.Scale.Scale = 0 else
+                local center = Vector2.new(size.X/2, size.Y/2)
+                local spc = cam.CFrame:VectorToObjectSpace(pos - cam.CFrame.Position)
+                local flat = Vector2.new(spc.X, spc.Y) if flat.Magnitude==0 then continue end
+                flat = flat.Unit
+                local wLim = math.max(size.X-pad*2,1)
+                local hLim = math.max(size.Y-pad*2,1)
+                local off
+                if math.abs(flat.Y) > hLim/wLim then off=flat*(hLim/2/math.max(math.abs(flat.Y),0.001))
+                else off=flat*(wLim/2/math.max(math.abs(flat.X),0.001)) end
+                info.Arrow.Position=UDim2.fromOffset(center.X+off.X,center.Y-off.Y)
+                info.Arrow.Rotation=math.deg(math.atan2(flat.X,flat.Y))
+                info.Scale.Scale=1
+                if info.Dist then info.Dist.Text = math.floor(dist).."m" end
             end
         end
     end
 end
 local ESPMgr = ESP.new()
 
-local function GetMap()
-    for _, v in ipairs(Workspace:GetChildren()) do
-        if v:FindFirstChild("CoinContainer") and v:FindFirstChild("Spawns") then return v end
-    end
-    return nil
-end
-
-local function FindMurderer()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if getPlayerRole(p) == "Murderer" then return p end
-    end
-    return nil
-end
-
-local function FindSheriff()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if getPlayerRole(p) == "Sheriff" then return p end
-    end
-    return nil
-end
-
-local function ReloadESP()
-    if not playerESP then return end
-    ESPMgr:ClearGroup("jugadores")
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer or not hideMeEsp then
-            if p.Character then
-                local role = getPlayerRole(p)
-                if role == "Murderer" then
-                    ESPMgr:Add(p.Character, {
-                        Color = Color3.new(1, 0, 0.015), ShowArrow = true, MinArrowDist = 999999,
-                        Label = "Asesino", ShowLabel = true, Group = "jugadores"
-                    })
-                elseif role == "Sheriff" then
-                    ESPMgr:Add(p.Character, {
-                        Color = Color3.new(0, 0.6, 1), ShowArrow = false, ShowLabel = false, Group = "jugadores"
-                    })
-                else
-                    ESPMgr:Add(p.Character, {
-                        Color = Color3.new(0, 1, 0.03), ShowArrow = false, ShowLabel = false, Group = "jugadores"
-                    })
-                end
-            end
+local function FindRole(role)
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p.Character then
+            if role=="Murderer" and p.Character:FindFirstChild("Knife") then return p end
+            if role=="Sheriff" and p.Character:FindFirstChild("Gun") then return p end
         end
-    end
+    end return nil
 end
 
-local function FindNearestPlayer()
-    local cercano, distMin = nil, math.huge
-    local pers = LocalPlayer.Character
-    local raiz = pers and pers:FindFirstChild("HumanoidRootPart")
-    if not raiz then return nil end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local rj = p.Character:FindFirstChild("HumanoidRootPart")
-            if rj then
-                local d = (raiz.Position - rj.Position).Magnitude
-                if d < distMin then distMin = d; cercano = p end
-            end
-        end
-    end
-    return cercano
-end
-
-local function EquipItem(name)
-    local c = LocalPlayer.Character
-    local hum = c and c:FindFirstChildOfClass("Humanoid")
-    if not c or not hum then return false end
+local function EquipTool(name)
+    local c = LocalPlayer.Character if not c or not c:FindFirstChildWhichIsA("Humanoid") then return false end
     if c:FindFirstChild(name) then return true end
-    local it = LocalPlayer.Backpack:FindFirstChild(name)
-    if it then hum:EquipTool(it); return true end
-    return false
+    local it = LocalPlayer.Backpack:FindFirstChild(name) if it then c.Humanoid:EquipTool(it) return true end return false
 end
 
-local function KnifeThrow(silencioso)
-    if getPlayerRole(LocalPlayer) ~= "Murderer" then
-        if not silencioso then Notify("No eres el Asesino") end
-        return
+-- ==========================================
+-- NUEVO: SISTEMA ANIMACIONES (ZOMBIE / NINJA)
+-- ==========================================
+local ZombieConn, NinjaConn
+local ZombieOrig, NinjaOrig = {}, {}
+
+local function SaveAnimations(char)
+    if not char or not char:FindFirstChild("Animate") then return end
+    local anim = char.Animate
+    for _,v in ipairs({"Walk","Idle","Run","Jump","Fall"}) do
+        local seq = anim:FindFirstChild(v)
+        if seq and seq:IsA("Animation") then ZombieOrig[v]=seq.AnimationId; NinjaOrig[v]=seq.AnimationId end
     end
-    if not EquipItem("Knife") then return end
-    local cercano = FindNearestPlayer()
-    if not cercano or not cercano.Character then
-        if not silencioso then Notify("Sin objetivo cercano") end
-        return
-    end
-    local c = LocalPlayer.Character
-    local rh = c and c:FindFirstChild("RightHand")
-    local nr = cercano.Character:FindFirstChild("HumanoidRootPart")
-    local knife = c:FindFirstChild("Knife")
-    local ev = knife and knife:FindFirstChild("Events")
-    local rem = ev and ev:FindFirstChild("KnifeThrown")
-    if not rh or not nr or not rem then
-        Notify("Cuchillo incompleto")
-        return
-    end
-    local args = {CFrame.new(rh.Position), CFrame.new(nr.Position)}
-    if spawnAtPlayer then
-        args[1] = CFrame.new(nr.Position + nr.CFrame.LookVector * 5)
-    end
-    rem:FireServer(unpack(args))
 end
 
-local function TeleportToLobby()
-    local lobby = Workspace:FindFirstChild("Lobby")
-    local c = LocalPlayer.Character
-    if not lobby or not c then Notify("Lobby no encontrado"); return end
-    local spawns = lobby:FindFirstChild("Spawns")
-    local sp = spawns and spawns:FindFirstChildWhichIsA("SpawnLocation")
-    if not sp then Notify("Sin punto de aparicion"); return end
-    c:MoveTo(sp.Position)
-end
-
-local function TeleportToMap()
-    local mapa = GetMap()
-    local c = LocalPlayer.Character
-    if not mapa or not c then Notify("Mapa no disponible"); return end
-    local spf = mapa:FindFirstChild("Spawns")
-    if not spf or #spf:GetChildren() < 1 then Notify("Sin spawns"); return end
-    local list = spf:GetChildren()
-    local sel = list[math.random(1, #list)]
-    if sel:IsA("BasePart") then c:MoveTo(sel.Position) else c:PivotTo(sel:GetPivot()) end
-end
-
-local function TeleportToDroppedGun()
-    local mapa = GetMap()
-    local c = LocalPlayer.Character
-    local drop = mapa and mapa:FindFirstChild("GunDrop")
-    if not drop or not c then Notify("Sin arma tirada"); return end
-    local ant = c:GetPivot()
-    c:PivotTo(drop:GetPivot())
-    task.spawn(function()
-        LocalPlayer.Backpack.ChildAdded:Wait()
-        if LocalPlayer.Character then LocalPlayer.Character:PivotTo(ant) end
+local function SetZombie(state)
+    if ZombieConn then ZombieConn:Disconnect() end
+    if not state then Notify("Animación Zombie: DESACTIVADA"); return end
+    Notify("Animación Zombie: ACTIVADA")
+    ZombieConn = RunService.Heartbeat:Connect(function()
+        local c = LocalPlayer.Character if not c or not c:FindFirstChild("Animate") then return end
+        local anim = c.Animate
+        local list = {
+            Walk="rbxassetid://152528856",
+            Idle="rbxassetid://152528065",
+            Run="rbxassetid://152528893",
+            Jump="rbxassetid://152529000",
+            Fall="rbxassetid://152528700"
+        }
+        for k,id in pairs(list) do if anim:FindFirstChild(k) then anim[k].AnimationId=id end end
     end)
 end
 
-local function MiniFling(tgt)
-    if not tgt or not tgt.Character then Notify("Jugador invalido"); return end
+local function SetNinja(state)
+    if NinjaConn then NinjaConn:Disconnect() end
+    if not state then Notify("Animación Ninja: DESACTIVADA"); return end
+    Notify("Animación Ninja: ACTIVADA")
+    NinjaConn = RunService.Heartbeat:Connect(function()
+        local c = LocalPlayer.Character if not c or not c:FindFirstChild("Animate") then return end
+        local anim = c.Animate
+        local list = {
+            Walk="rbxassetid://248262724",
+            Idle="rbxassetid://248262620",
+            Run="rbxassetid://248262790",
+            Jump="rbxassetid://248262850",
+            Fall="rbxassetid://248262910"
+        }
+        for k,id in pairs(list) do if anim:FindFirstChild(k) then anim[k].AnimationId=id end end
+    end)
+end
+
+LocalPlayer.CharacterAdded:Connect(SaveAnimations)
+if LocalPlayer.Character then SaveAnimations(LocalPlayer.Character) end
+
+-- ==========================================
+-- NUEVO: ASESINO — MATAR TODOS (DE CHITUKTEAMO)
+-- ==========================================
+local function MurdererKillAllNew()
+    if FindRole("Murderer")~=LocalPlayer then Notify("No eres Asesino"); return end
+    if not EquipTool("Knife") then return end
     local c = LocalPlayer.Character
-    local hum = c and c:FindFirstChildOfClass("Humanoid")
-    local root = hum and hum.RootPart
-    local tc = tgt.Character
-    local thum = tc:FindFirstChildOfClass("Humanoid")
-    local troot = thum and thum.RootPart
-    local thead = tc:FindFirstChild("Head")
-    if not c or not hum or not root or not thum or not troot then
-        Notify("Partes faltantes")
-        return
-    end
-    local posAnt = root.CFrame
-    local altAnt = Workspace.FallenPartsDestroyHeight
-    Workspace.FallenPartsDestroyHeight = math.huge
-    local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bv.Velocity = Vector3.new(9e8, 9e8, 9e8)
-    bv.Parent = root
-    local parte = thead or troot
-    local ini = tick()
-    while tick() - ini < 2 and parte.Parent and root.Parent and thum.Health > 0 do
-        if parte.Velocity.Magnitude < 50 then
-            local vel = thum.MoveDirection * thum.WalkSpeed / 1.25
-            local offs = {CFrame.new(0, 1.5, 0), CFrame.new(0, -1.5, 0), CFrame.new(2.25, 1.5, -2.25), CFrame.new(-2.25, -1.5, 2.25)}
-            for _, of in ipairs(offs) do
-                if not parte.Parent then break end
-                root.CFrame = CFrame.new(parte.Position) * of + vel
-                root.AssemblyLinearVelocity = Vector3.new(9e7, 9e8, 9e7)
-                root.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
-                task.wait()
-            end
-        else
-            root.CFrame = CFrame.new(parte.Position + Vector3.new(0, 1.5, 0))
-            root.AssemblyLinearVelocity = Vector3.new(9e7, 9e8, 9e7)
-            root.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
-            task.wait()
-        end
-    end
-    bv:Destroy()
-    hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-    Workspace.CurrentCamera.CameraSubject = hum
-    for _ = 1, 30 do
-        if not root.Parent then break end
-        root.CFrame = posAnt * CFrame.new(0, 0.5, 0)
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-        task.wait()
-        if (root.Position - posAnt.Position).Magnitude < 25 then break end
-    end
-    Workspace.FallenPartsDestroyHeight = altAnt
-end
-
-local function ToggleAntiFling(valor)
-    antiFlingEnabled = valor
-    if antiFlingConnection then antiFlingConnection:Disconnect(); antiFlingConnection = nil end
-    if valor then
-        antiFlingConnection = RunService.Heartbeat:Connect(function()
-            local c = LocalPlayer.Character
-            if not c then return end
-            local rp = c:FindFirstChild("HumanoidRootPart")
-            if rp then
-                rp.AssemblyLinearVelocity = Vector3.zero
-                rp.AssemblyAngularVelocity = Vector3.zero
-                for _, con in ipairs(rp:GetChildren()) do
-                    if con:IsA("BodyVelocity") or con:IsA("BodyPosition") or con:IsA("BodyGyro") or con:IsA("BodyAngularVelocity") then
-                        con:Destroy()
-                    end
-                end
-            end
-        end)
-        Notify("Anti Fling: Activado")
-    else
-        Notify("Anti Fling: Desactivado")
-    end
-end
-
-local function TogglePlayerESP(v)
-    playerESP = v
-    if v then
-        if not FindMurderer() and not FindSheriff() then
-            Notify("Esperando roles...")
-            task.spawn(function()
-                repeat task.wait(1) until not playerESP or FindSheriff() or FindMurderer()
-                if playerESP then ReloadESP() end
-            end)
-        else
-            ReloadESP()
-        end
-    else
-        ESPMgr:ClearGroup("jugadores")
-    end
-end
-
-local function ToggleGunESP(v)
-    gunDropESP = v
-    if not v then ESPMgr:ClearGroup("armas"); return end
-    local m = GetMap()
-    if not m then return end
-    local dg = m:FindFirstChild("GunDrop")
-    if dg then
-        ESPMgr:Add(dg, {
-            Color = Color3.new(0.95, 1, 0.07), ShowArrow = true, MinArrowDist = 999999,
-            Label = "ARMA TIRADA", ShowLabel = true, Group = "armas"
-        })
-        Notify("Arma detectada")
-    end
-end
-
-local function ToggleTrapESP(v)
-    trapDetection = v
-    if not v then ESPMgr:ClearGroup("trampas"); return end
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj.Name == "Trap" and obj.Parent and (obj.Parent:IsA("Folder") or obj.Parent:IsA("Model")) then
-            if obj:IsA("BasePart") then obj.Transparency = 0 end
-            ESPMgr:Add(obj, {
-                Color = Color3.new(1, 0, 0), ShowArrow = false, ShowLabel = true,
-                Label = "TRAMPA", Group = "trampas"
-            })
+    local hrp = c and c:FindFirstChild("HumanoidRootPart")
+    local knife = c and c:FindFirstChild("Knife")
+    local stab = knife and knife:FindFirstChild("Stab")
+    if not hrp or not stab then Notify("Falta arma/evento"); return end
+    Notify("Ejecutando KillAll (versión nueva)")
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
+            local thrp = p.Character.HumanoidRootPart
+            thrp.Anchored = true
+            thrp.CFrame = hrp.CFrame * CFrame.new(0,0,-2.5)
+            task.wait(0.04)
+            p.Character.Humanoid.Health = 0
+            pcall(function() stab:FireServer("Slash") end)
         end
     end
 end
 
-local function ToggleRoundTimer(v)
-    if timerTask then task.cancel(timerTask); timerTask = nil end
-    if timerText then timerText:Destroy(); timerText = nil end
-    if not v then return end
-    timerText = Instance.new("TextLabel")
-    timerText.Parent = game:GetService("CoreGui")
-    timerText.BackgroundTransparency = 1
-    timerText.TextColor3 = Color3.new(1, 1, 1)
-    timerText.TextScaled = true
-    timerText.AnchorPoint = Vector2.new(0.5, 0.5)
-    timerText.Position = UDim2.fromScale(0.5, 0.15)
-    timerText.Size = UDim2.fromOffset(200, 35)
-    timerText.Font = Enum.Font.Montserrat
-    timerTask = task.spawn(function()
-        while timerText do
-            task.wait(0.5)
-            local rt = Workspace:FindFirstChild("RoundTimerPart")
-            if rt then
-                local t = rt:GetAttribute("Time")
-                if type(t) == "number" then
-                    if t == -1 then
-                        timerText.Text = ""
-                    else
-                        local m = math.floor(t / 60)
-                        local s = t % 60
-                        timerText.Text = string.format("%dm %ds", m, s)
-                    end
-                end
+-- ==========================================
+-- NUEVO: SHERIFF — AUTO AGARRAR PISTOLA (DE CHITUKTEAMO)
+-- ==========================================
+local GrabGunConn
+local function AutoGrabGunNew(state)
+    if GrabGunConn then GrabGunConn:Disconnect() end
+    if not state then Notify("Auto‑Pistola: DESACTIVADO"); return end
+    Notify("Auto‑Pistola: ACTIVADO (método nuevo)")
+    GrabGunConn = RunService.Heartbeat:Connect(function()
+        local c = LocalPlayer.Character if not c or not c:FindFirstChild("HumanoidRootPart") then return end
+        local myPos = c.HumanoidRootPart.Position
+        local map = Workspace:FindFirstChildWhichIsA("Model",true,function(x) return x:FindFirstChild("GunDrop") end)
+        if not map then return end
+        local gun = map:FindFirstChild("GunDrop")
+        if gun and gun:IsA("BasePart") then
+            if (myPos - gun.Position).Magnitude < 12 then
+                pcall(function()
+                    firetouchinterest(c.HumanoidRootPart,gun,0)
+                    firetouchinterest(gun,c.HumanoidRootPart,0)
+                end)
             end
         end
     end)
 end
 
-local function SendRolesToChat()
-    local canales = TextChatService:WaitForChild("TextChannels"):GetChildren()
-    local m = FindMurderer()
-    local s = FindSheriff()
-    local mn = m and m.Name or "-"
-    local sn = s and s.Name or "-"
-    local txt = string.format("Asesino: %s | Sheriff: %s | Chituk Hub", mn, sn)
-    for _, c in ipairs(canales) do
-        if c:IsA("TextChannel") and c.Name ~= "RBXSystem" then
-            pcall(function() c:SendAsync(txt) end)
-        end
-    end
+-- Sheriff básico funcional
+local function SheriffShoot()
+    if FindRole("Sheriff")~=LocalPlayer then Notify("No eres Sheriff") return end
+    local tgt = FindRole("Murderer") if not tgt or not tgt.Character then Notify("Sin objetivo") return end
+    if not EquipTool("Gun") then return end
+    local c = LocalPlayer.Character local gun = c and c:FindFirstChild("Gun")
+    local hrp = c and c:FindFirstChild("HumanoidRootPart")
+    local thrp = tgt.Character:FindFirstChild("HumanoidRootPart")
+    local shootEv = gun and gun:FindFirstChild("Shoot")
+    if hrp and thrp and shootEv then shootEv:FireServer(hrp.CFrame, thrp.Position) Notify("Disparo enviado") end
 end
 
-local function ToggleKillAura(v)
-    if killAuraConnection then killAuraConnection:Disconnect(); killAuraConnection = nil end
-    if not v then return end
-    killAuraConnection = RunService.Heartbeat:Connect(function()
-        if getPlayerRole(LocalPlayer) ~= "Murderer" then return end
-        local c = LocalPlayer.Character
-        local r = c and c:FindFirstChild("HumanoidRootPart")
-        local k = c and c:FindFirstChild("Knife")
-        local st = k and k:FindFirstChild("Stab")
-        if not r or not st then return end
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                local pr = p.Character:FindFirstChild("HumanoidRootPart")
-                if pr and (pr.Position - r.Position).Magnitude < 7 then
-                    pr.Anchored = true
-                    pr.CFrame = r.CFrame + r.CFrame.LookVector * 2
-                    task.wait(0.1)
-                    if st:IsA("RemoteEvent") then st:FireServer("Slash") end
-                    break
-                end
+-- AutoFarm compacto
+local FarmSpeed = 40
+local FarmConn
+local function AutoFarmToggle(state)
+    if FarmConn then FarmConn:Disconnect() end
+    if not state then Notify("AutoFarm desactivado") return end
+    Notify("AutoFarm activado")
+    FarmConn = RunService.Heartbeat:Connect(function()
+        local c = LocalPlayer.Character if not c or not c:FindFirstChild("HumanoidRootPart") then return end
+        local hrp = c.HumanoidRootPart
+        local map = Workspace:FindFirstChildWhichIsA("Model",true,function(x) return x:FindFirstChild("CoinContainer") end)
+        if not map then return end
+        local coins = map:FindFirstChild("CoinContainer"):GetChildren() if #coins==0 then return end
+        local best,bestD = nil,math.huge
+        local myPos = hrp.Position
+        for _,coin in ipairs(coins) do
+            if coin:IsA("BasePart") or coin:IsA("Model") then
+                local p = coin:IsA("Model") and coin:GetPivot().Position or coin.Position
+                local d = (myPos - p).Magnitude
+                if d<bestD then bestD=d best=coin end
             end
+        end
+        if best then
+            local dest = best:IsA("Model") and best:GetPivot() or best.Position
+            hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(dest), math.clamp(FarmSpeed/100,0.06,0.82))
         end
     end)
 end
 
-local function KillClosest()
-    if getPlayerRole(LocalPlayer) ~= "Murderer" then Notify("Solo para Asesino"); return end
-    if not EquipItem("Knife") then return end
-    local cer = FindNearestPlayer()
-    if not cer or not cer.Character then Notify("Sin objetivo cercano"); return end
-    local c = LocalPlayer.Character
-    local r = c and c:FindFirstChild("HumanoidRootPart")
-    local tr = cer.Character:FindFirstChild("HumanoidRootPart")
-    local k = c:FindFirstChild("Knife")
-    local st = k and k:FindFirstChild("Stab")
-    if not r or not tr or not st then Notify("Elementos faltantes"); return end
-    tr.Anchored = true
-    tr.CFrame = r.CFrame + r.CFrame.LookVector * 2
-    task.wait(0.1)
-    st:FireServer("Slash")
-end
+-- ==========================================
+-- INTERFAZ FINAL COMPLETA
+-- ==========================================
+MainTab:CreateSection("Sistema")
+MainTab:CreateToggle({Name="Noclip",CurrentValue=false,Callback=SetNoclip})
+MainTab:CreateSlider({Name="Velocidad",Range={16,300},Increment=1,CurrentValue=SpeedWalk,Callback=SetSpeed})
+MainTab:CreateToggle({Name="Anti‑Fling",CurrentValue=false,Callback=AntiFlingToggle})
 
-local function KillEveryone()
-    if getPlayerRole(LocalPlayer) ~= "Murderer" then Notify("Solo para Asesino"); return end
-    if not EquipItem("Knife") then return end
-    local c = LocalPlayer.Character
-    local r = c and c:FindFirstChild("HumanoidRootPart")
-    local k = c:FindFirstChild("Knife")
-    local st = k and k:FindFirstChild("Stab")
-    if not r or not st then Notify("Configuracion incompleta"); return end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local pr = p.Character:FindFirstChild("HumanoidRootPart")
-            if pr then pr.Anchored = true; pr.CFrame = r.CFrame + r.CFrame.LookVector end
-        end
-    end
-    st:FireServer("Slash")
-end
+AnimTab:CreateSection("Estilos de Movimiento")
+AnimTab:CreateToggle({Name="Animación Zombie",CurrentValue=false,Callback=SetZombie})
+AnimTab:CreateToggle({Name="Animación Ninja",CurrentValue=false,Callback=SetNinja})
 
-local function GodMode()
-    local cam = Workspace.CurrentCamera
-    local c = LocalPlayer.Character
-    local hum = c and c:FindFirstChildOfClass("Humanoid")
-    if not cam or not c or not hum then Notify("Personaje invalido"); return end
-    local posCam = cam.CFrame
-    local nh = hum:Clone()
-    nh.Parent = c
-    LocalPlayer.Character = nil
-    hum:Destroy()
-    LocalPlayer.Character = c
-    cam.CameraSubject = nh
-    cam.CFrame = posCam
-    nh:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-    nh:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    nh:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-    nh.BreakJointsOnDeath = true
-    nh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-    local anim = c:FindFirstChild("Animate")
-    if anim then anim.Disabled = true; task.wait(); anim.Disabled = false end
-    nh.Health = nh.MaxHealth
-end
+SheriffTab:CreateSection("Herramientas Actualizadas")
+SheriffTab:CreateToggle({Name="Auto Agarrar Pistola (NUEVO)",CurrentValue=false,Callback=AutoGrabGunNew})
+SheriffTab:CreateButton({Name="Disparar al Asesino",Callback=SheriffShoot})
 
-local function CopiarAlPortapapeles(texto, nombre)
-    if setclipboard then
-        setclipboard(texto)
-        Notify(nombre .. " copiado")
-    else
-        Notify("Portapapeles no disponible")
-    end
-end
+MurdererTab:CreateSection("Poderes — Sistema Nuevo")
+MurdererTab:CreateButton({Name="Matar a Todos (Versión ChitukTeAmo)",Callback=MurdererKillAllNew})
 
-MainTab:CreateSection("Movimiento y General")
-MainTab:CreateToggle({Name = "Noclip", CurrentValue = false, Callback = ToggleNoclip})
-MainTab:CreateSlider({Name = "Velocidad del Jugador", Range = {16, 300}, Increment = 1, Suffix = " u/s", CurrentValue = PlayerSpeed, Callback = SetPlayerSpeed})
-MainTab:CreateToggle({Name = "Anti Fling", CurrentValue = false, Callback = ToggleAntiFling})
-MainTab:CreateToggle({Name = "Cronometro de Ronda", CurrentValue = false, Callback = ToggleRoundTimer})
-MainTab:CreateToggle({Name = "Recoger Arma Automaticamente", CurrentValue = false, Callback = function(v) autoGetDroppedGun = v end})
-MainTab:CreateToggle({Name = "Bloquear Cuchillos", CurrentValue = false, Callback = function(v) ignoreKnifeThrow = v end})
-MainTab:CreateButton({Name = "Enviar Roles al Chat", Callback = SendRolesToChat})
-MainTab:CreateButton({Name = "Modo Dios", Callback = GodMode})
+AutoFarmTab:CreateSection("Recolección")
+AutoFarmTab:CreateSlider({Name="Velocidad Farm",Range={15,130},Increment=1,CurrentValue=FarmSpeed,Callback=function(v) FarmSpeed=v end})
+AutoFarmTab:CreateToggle({Name="Activar AutoFarm",CurrentValue=false,Callback=AutoFarmToggle})
 
-ESPTab:CreateSection("Visuales")
-ESPTab:CreateToggle({Name = "Jugadores", CurrentValue = false, Callback = TogglePlayerESP})
-ESPTab:CreateToggle({Name = "Armas Tiradas", CurrentValue = false, Callback = ToggleGunESP})
-ESPTab:CreateToggle({Name = "Trampas", CurrentValue = false, Callback = ToggleTrapESP})
-ESPTab:CreateToggle({Name = "Ocultar Mi ESP", CurrentValue = false, Callback = function(v) hideMeEsp = v; ReloadESP() end})
-ESPTab:CreateButton({Name = "Actualizar ESP", Callback = ReloadESP})
+CreditsTab:CreateSection("Créditos / Redes")
+CreditsTab:CreateLabel("Chituk Hub — Animaciones + Sistema Renovado")
+CreditsTab:CreateButton({Name="Discord Dark",Callback=function() setclipboard and setclipboard("https://discord.gg/6G4RVBH9D") Notify("Copiado") end})
+CreditsTab:CreateButton({Name="TikTok Dark",Callback=function() setclipboard and setclipboard("tiktok.com/@darkbimo") Notify("Copiado") end})
+CreditsTab:CreateButton({Name="YouTube Chituk",Callback=function() setclipboard and setclipboard("https://youtube.com/@chituk_9?si=vlU_jfNWu1duEOFZ") Notify("Copiado") end})
+CreditsTab:CreateButton({Name="Discord Chituk",Callback=function() setclipboard and setclipboard("https://discord.gg/mdvByagDr3") Notify("Copiado") end})
 
-local coinFarmActive = false
-local coinFarmLoop = nil
-local coinFarmConnections = {}
-local isFarming = false
-local originalCollision = {}
-local currentTween = nil
-local originalCFrame = nil
-local velocityLoop = nil
-local humSpeed = 16
-
-local function touchInterests()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("TouchTransmitter") then
-            pcall(function() firetouchinterest(root, v.Parent, 0) end)
-        end
-    end
-    Notify("Touch Interests ejecutados")
-end
-
-local function enableNoclip()
-    local char = LocalPlayer.Character
-    if char then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
-    end
-end
-
-local function returnCoinContainer()
-    return Workspace:FindFirstChild("CoinContainer", true)
-end
-
-local function findNearestCoin(container)
-    if not container then return nil, 0 end
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return nil, 0 end
-    local nearestCoin = nil
-    local nearestDist = math.huge
-    for _, coin in pairs(container:GetChildren()) do
-        if coin:GetAttribute("CoinID") == "Coin" and coin:FindFirstChild("TouchInterest") and coin.Transparency == 1 then
-            local dist = (root.Position - coin.Position).Magnitude
-            if dist < nearestDist then
-                nearestDist = dist
-                nearestCoin = coin
-            end
-        end
-    end
-    return nearestCoin, nearestDist
-end
-
-local function startFarming()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChild("Humanoid")
-    if not root or not hum then return end
-    if not originalCFrame then
-        originalCFrame = root.CFrame
-    end
-    humSpeed = hum.WalkSpeed
-    originalCollision = {}
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            originalCollision[part] = {
-                CanCollide = part.CanCollide,
-                Massless = part.Massless
-            }
-        end
-    end
-    root.CFrame = root.CFrame - Vector3.new(0, 2.5, 0)
-    root.CFrame = root.CFrame * CFrame.Angles(math.rad(90), 0, 0)
-    if hum then
-        hum.PlatformStand = true
-        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-    end
-    if velocityLoop then
-        velocityLoop:Disconnect()
-        velocityLoop = nil
-    end
-    velocityLoop = RunService.Heartbeat:Connect(function()
-        if isFarming and root and root.Parent then
-            root.Velocity = Vector3.zero
-            root.RotVelocity = Vector3.zero
-        end
-    end)
-    isFarming = true
-end
-
-local function stopFarming()
-    isFarming = false
-    if velocityLoop then
-        velocityLoop:Disconnect()
-        velocityLoop = nil
-    end
-    if currentTween then
-        pcall(function() currentTween:Cancel() end)
-        currentTween = nil
-    end
-    for part, data in pairs(originalCollision) do
-        if part and part.Parent then
-            part.CanCollide = data.CanCollide
-            part.Massless = data.Massless
-        end
-    end
-    originalCollision = {}
-    local char = LocalPlayer.Character
-    if char then
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if root then
-            root.Velocity = Vector3.zero
-            root.RotVelocity = Vector3.zero
-            if originalCFrame then
-                root.CFrame = originalCFrame
-                originalCFrame = nil
-            else
-                root.CFrame = root.CFrame * CFrame.Angles(math.rad(-90), 0, 0)
-                root.CFrame = root.CFrame + Vector3.new(0, 2.5, 0)
-            end
-        end
-        local hum = char:FindFirstChild("Humanoid")
-        if hum then
-            hum.PlatformStand = false
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-            hum.WalkSpeed = humSpeed
-        end
-    end
-end
-
-local function moveToCoin(coin)
-    if not coin or not coin.Parent then return end
-    if not LocalPlayer.Character then return end
-    local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
-    if hum then
-        hum.PlatformStand = true
-    end
-    root.Velocity = Vector3.zero
-    root.RotVelocity = Vector3.zero
-    if currentTween then
-        pcall(function() currentTween:Cancel() end)
-        currentTween = nil
-    end
-    local targetPos = coin.Position - Vector3.new(0, 2.5, 0)
-    local targetCFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(90), 0, 0)
-    local dist = (root.Position - targetPos).Magnitude
-    local duration = dist / 23
-    if duration < 0.05 then
-        root.CFrame = targetCFrame
-        root.Velocity = Vector3.zero
-        root.RotVelocity = Vector3.zero
-        return
-    end
-    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
-    currentTween = TweenService:Create(root, tweenInfo, {CFrame = targetCFrame})
-    currentTween:Play()
-    currentTween.Completed:Wait()
-    currentTween = nil
-    root.Velocity = Vector3.zero
-    root.RotVelocity = Vector3.zero
-end
-
-local function coinFarmFunction()
-    while coinFarmActive do
-        pcall(function()
-            local char = LocalPlayer.Character
-            if not char then return end
-            local root = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChild("Humanoid")
-            if not root or not hum then return end
-            root.Velocity = Vector3.zero
-            root.RotVelocity = Vector3.zero
-            if LocalPlayer:GetAttribute("Alive") ~= true then
-                if isFarming then stopFarming() end
-                return
-            end
-            hum.PlatformStand = true
-            local container = returnCoinContainer()
-            if not container then
-                if isFarming then stopFarming() end
-                return
-            end
-            local coin, dist = findNearestCoin(container)
-            if coin and coin.Transparency == 1 then
-                if not isFarming then
-                    startFarming()
-                end
-                enableNoclip()
-                hum.PlatformStand = true
-                moveToCoin(coin)
-                if root and coin and coin.Parent then
-                    local currentDist = (root.Position - coin.Position).Magnitude
-                    if currentDist <= 5 then
-                        firetouchinterest(root, coin, 0)
-                        firetouchinterest(root, coin, 1)
-                    end
-                end
-            else
-                if isFarming then stopFarming() end
-            end
-        end)
-        task.wait(0.05)
-    end
-end
-
-AutoFarmTab:CreateSection("AutoFarm de Monedas")
-AutoFarmTab:CreateToggle({
-    Name = "Activar AutoFarm",
-    CurrentValue = false,
-    Callback = function(Value)
-        coinFarmActive = Value
-        if Value then
-            Notify("AutoFarm: Activado")
-            if getPlayerRole(LocalPlayer) == "Murderer" then
-                Notify("AutoFarm: Eres Asesino, desactivado")
-                coinFarmActive = false
-                return
-            end
-            local char = LocalPlayer.Character
-            if char then
-                local root = char:FindFirstChild("HumanoidRootPart")
-                if root then
-                    originalCFrame = root.CFrame
-                end
-            end
-            coinFarmLoop = task.spawn(coinFarmFunction)
-            local charAddedConn = LocalPlayer.CharacterAdded:Connect(function()
-                if coinFarmActive then
-                    if coinFarmLoop then task.cancel(coinFarmLoop) end
-                    if isFarming then stopFarming() end
-                    task.wait(0.5)
-                    local newChar = LocalPlayer.Character
-                    if newChar then
-                        local newRoot = newChar:FindFirstChild("HumanoidRootPart")
-                        if newRoot then
-                            originalCFrame = newRoot.CFrame
-                        end
-                    end
-                    coinFarmLoop = task.spawn(coinFarmFunction)
-                end
-            end)
-            table.insert(coinFarmConnections, charAddedConn)
-        else
-            coinFarmActive = false
-            if coinFarmLoop then
-                task.cancel(coinFarmLoop)
-                coinFarmLoop = nil
-            end
-            if isFarming then stopFarming() end
-            for _, conn in pairs(coinFarmConnections) do
-                pcall(function() conn:Disconnect() end)
-            end
-            coinFarmConnections = {}
-            Notify("AutoFarm: Desactivado")
-        end
-    end
-})
-
-local aimBotActive = false
-local aimBotLoop = nil
-
-SheriffTab:CreateSection("Herramientas del Sheriff")
-SheriffTab:CreateButton({Name = "Agarrar Arma", Callback = touchInterests})
-SheriffTab:CreateToggle({
-    Name = "Aim Bot al Asesino",
-    CurrentValue = false,
-    Callback = function(Value)
-        aimBotActive = Value
-        if Value then
-            Notify("Aim Bot: Activado")
-            aimBotLoop = task.spawn(function()
-                while aimBotActive do
-                    pcall(function()
-                        if getPlayerRole(LocalPlayer) == "Sheriff" then
-                            local cam = Workspace.CurrentCamera
-                            if not cam then return end
-                            local murderer = nil
-                            local murdererHead = nil
-                            for _, p in pairs(Players:GetPlayers()) do
-                                if p ~= LocalPlayer and p.Character then
-                                    local role = getPlayerRole(p)
-                                    if role == "Murderer" then
-                                        local head = p.Character:FindFirstChild("Head")
-                                        if head then
-                                            murderer = p
-                                            murdererHead = head
-                                            break
-                                        end
-                                    end
-                                end
-                            end
-                            if murderer and murdererHead then
-                                cam.CFrame = CFrame.new(cam.CFrame.Position, murdererHead.Position)
-                            end
-                        end
-                    end)
-                    task.wait()
-                end
-            end)
-        else
-            aimBotActive = false
-            if aimBotLoop then
-                task.cancel(aimBotLoop)
-                aimBotLoop = nil
-            end
-            Notify("Aim Bot: Desactivado")
-        end
-    end
-})
-
-SheriffTab:CreateButton({
-    Name = "Agarrar Arma al Morir",
-    Callback = function()
-        if getPlayerRole(LocalPlayer) == "Sheriff" then
-            Notify("Ya eres el Sheriff")
-            return
-        end
-        local sheriff = nil
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer then
-                local role = getPlayerRole(p)
-                if role == "Sheriff" then
-                    sheriff = p
-                    break
-                end
-            end
-        end
-        if not sheriff then
-            Notify("No se encontro al Sheriff")
-            return
-        end
-        Notify("Monitoreando al Sheriff...")
-        local monitorConnection
-        monitorConnection = RunService.Heartbeat:Connect(function()
-            if not sheriff or not sheriff.Character or not sheriff.Character:FindFirstChild("Humanoid") then
-                monitorConnection:Disconnect()
-                Notify("Sheriff murio! Ejecutando Touch Interests...")
-                touchInterests()
-                return
-            end
-            local hum = sheriff.Character:FindFirstChild("Humanoid")
-            if hum and hum.Health <= 0 then
-                monitorConnection:Disconnect()
-                Notify("Sheriff murio! Ejecutando Touch Interests...")
-                touchInterests()
-                return
-            end
-        end)
-    end
-})
-
-local autoGrabActive = false
-local autoGrabLoop = nil
-
-SheriffTab:CreateToggle({
-    Name = "Auto Agarrar Arma",
-    CurrentValue = false,
-    Callback = function(Value)
-        autoGrabActive = Value
-        if Value then
-            Notify("Auto Agarrar Arma: Activado")
-            autoGrabLoop = task.spawn(function()
-                while autoGrabActive do
-                    pcall(function()
-                        if not LocalPlayer:GetAttribute("Alive") then return end
-                        if getPlayerRole(LocalPlayer) == "Murderer" then return end
-                        local map = nil
-                        for _, obj in pairs(Workspace:GetChildren()) do
-                            if obj:GetAttribute("MapID") then
-                                map = obj
-                                break
-                            end
-                        end
-                        if not map then return end
-                        local hasGun = false
-                        if LocalPlayer.Character then
-                            for _, tool in pairs(LocalPlayer.Character:GetChildren()) do
-                                if tool:IsA("Tool") and tool.Name:lower():find("gun") then
-                                    hasGun = true
-                                    break
-                                end
-                            end
-                        end
-                        if not hasGun then
-                            local gunDrop = map:FindFirstChild("GunDrop")
-                            if gunDrop and LocalPlayer.Character then
-                                local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                if root then
-                                    gunDrop.CFrame = root.CFrame
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(1)
-                end
-            end)
-        else
-            autoGrabActive = false
-            if autoGrabLoop then
-                task.cancel(autoGrabLoop)
-                autoGrabLoop = nil
-            end
-            Notify("Auto Agarrar Arma: Desactivado")
-        end
-    end
-})
-
-local autoShootActive = false
-local autoShootLoop = nil
-local autoShootConnections = {}
-
-SheriffTab:CreateToggle({
-    Name = "Auto Disparar al Asesino",
-    CurrentValue = false,
-    Callback = function(Value)
-        autoShootActive = Value
-        if Value then
-            if getPlayerRole(LocalPlayer) ~= "Sheriff" then
-                Notify("No eres el Sheriff!")
-                autoShootActive = false
-                return
-            end
-            Notify("Auto Disparar: Activado")
-            autoShootLoop = task.spawn(function()
-                while autoShootActive do
-                    pcall(function()
-                        if getPlayerRole(LocalPlayer) ~= "Sheriff" then
-                            Notify("No eres el Sheriff! Desactivado")
-                            autoShootActive = false
-                            return
-                        end
-                        local gun = nil
-                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun") then
-                            gun = LocalPlayer.Character.Gun
-                        elseif LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild("Gun") then
-                            gun = LocalPlayer.Backpack.Gun
-                            gun.Parent = LocalPlayer.Character
-                        end
-                        if not gun then return end
-                        local murderer = nil
-                        local getPlayerData = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
-                        if getPlayerData then
-                            local success, data = pcall(function() return getPlayerData:InvokeServer() end)
-                            if success and data then
-                                for _, player in ipairs(Players:GetPlayers()) do
-                                    if player ~= LocalPlayer and player:GetAttribute("Alive") == true then
-                                        local playerData = data[player.Name]
-                                        if playerData and playerData.Role and playerData.Role == "Murderer" then
-                                            murderer = player
-                                            break
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        if not murderer then return end
-                        local murdererChar = murderer.Character
-                        if not murdererChar then return end
-                        local murdererHRP = murdererChar:FindFirstChild("HumanoidRootPart")
-                        local murdererTorso = murdererChar:FindFirstChild("Torso") or murdererChar:FindFirstChild("UpperTorso")
-                        if not murdererHRP or not murdererTorso then return end
-                        if not LocalPlayer.Character then return end
-                        local myHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        if not myHRP then return end
-                        local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-                        local pingSeconds = (ping / 1000) * 1.25
-                        local murdererVelocity = murdererHRP.Velocity
-                        local speed = murdererVelocity.Magnitude
-                        local targetPos
-                        if speed < 1 then
-                            targetPos = murdererTorso.Position
-                        else
-                            targetPos = murdererTorso.Position + (murdererVelocity * pingSeconds)
-                        end
-                        local shootCFrame = CFrame.new(myHRP.Position, targetPos)
-                        local targetCFrame = CFrame.new(targetPos)
-                        local shootEvent = gun:FindFirstChild("ShootEvent") or gun:FindFirstChild("Shoot")
-                        if shootEvent then
-                            shootEvent:FireServer(shootCFrame, targetCFrame)
-                        end
-                    end)
-                    task.wait(1)
-                end
-            end)
-            local charAddedConn = LocalPlayer.CharacterAdded:Connect(function()
-                if autoShootActive then
-                    if autoShootLoop then task.cancel(autoShootLoop) end
-                    autoShootLoop = task.spawn(function()
-                        while autoShootActive do
-                            pcall(function()
-                                if getPlayerRole(LocalPlayer) ~= "Sheriff" then
-                                    Notify("No eres el Sheriff! Desactivado")
-                                    autoShootActive = false
-                                    return
-                                end
-                                local gun = nil
-                                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun") then
-                                    gun = LocalPlayer.Character.Gun
-                                elseif LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild("Gun") then
-                                    gun = LocalPlayer.Backpack.Gun
-                                    gun.Parent = LocalPlayer.Character
-                                end
-                                if not gun then return end
-                                local murderer = nil
-                                local getPlayerData = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
-                                if getPlayerData then
-                                    local success, data = pcall(function() return getPlayerData:InvokeServer() end)
-                                    if success and data then
-                                        for _, player in ipairs(Players:GetPlayers()) do
-                                            if player ~= LocalPlayer and player:GetAttribute("Alive") == true then
-                                                local playerData = data[player.Name]
-                                                if playerData and playerData.Role and playerData.Role == "Murderer" then
-                                                    murderer = player
-                                                    break
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                                if not murderer then return end
-                                local murdererChar = murderer.Character
-                                if not murdererChar then return end
-                                local murdererHRP = murdererChar:FindFirstChild("HumanoidRootPart")
-                                local murdererTorso = murdererChar:FindFirstChild("Torso") or murdererChar:FindFirstChild("UpperTorso")
-                                if not murdererHRP or not murdererTorso then return end
-                                if not LocalPlayer.Character then return end
-                                local myHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                if not myHRP then return end
-                                local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-                                local pingSeconds = (ping / 1000) * 1.25
-                                local murdererVelocity = murdererHRP.Velocity
-                                local speed = murdererVelocity.Magnitude
-                                local targetPos
-                                if speed < 1 then
-                                    targetPos = murdererTorso.Position
-                                else
-                                    targetPos = murdererTorso.Position + (murdererVelocity * pingSeconds)
-                                end
-                                local shootCFrame = CFrame.new(myHRP.Position, targetPos)
-                                local targetCFrame = CFrame.new(targetPos)
-                                local shootEvent = gun:FindFirstChild("ShootEvent") or gun:FindFirstChild("Shoot")
-                                if shootEvent then
-                                    shootEvent:FireServer(shootCFrame, targetCFrame)
-                                end
-                            end)
-                            task.wait(1)
-                        end
-                    end)
-                end
-            end)
-            table.insert(autoShootConnections, charAddedConn)
-        else
-            autoShootActive = false
-            if autoShootLoop then
-                task.cancel(autoShootLoop)
-                autoShootLoop = nil
-            end
-            for _, conn in pairs(autoShootConnections) do
-                pcall(function() conn:Disconnect() end)
-            end
-            autoShootConnections = {}
-            Notify("Auto Disparar: Desactivado")
-        end
-    end
-})
-
-local autoShootVisibleActive = false
-local autoShootVisibleLoop = nil
-local autoShootVisibleConnections = {}
-
-SheriffTab:CreateToggle({
-    Name = "Auto Disparar Visible",
-    CurrentValue = false,
-    Callback = function(Value)
-        autoShootVisibleActive = Value
-        if Value then
-            if getPlayerRole(LocalPlayer) ~= "Sheriff" then
-                Notify("No eres el Sheriff!")
-                autoShootVisibleActive = false
-                return
-            end
-            Notify("Auto Disparar Visible: Activado")
-            autoShootVisibleLoop = task.spawn(function()
-                while autoShootVisibleActive do
-                    pcall(function()
-                        if getPlayerRole(LocalPlayer) ~= "Sheriff" then
-                            Notify("No eres el Sheriff! Desactivado")
-                            autoShootVisibleActive = false
-                            return
-                        end
-                        local gun = nil
-                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun") then
-                            gun = LocalPlayer.Character.Gun
-                        elseif LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild("Gun") then
-                            gun = LocalPlayer.Backpack.Gun
-                            gun.Parent = LocalPlayer.Character
-                        end
-                        if not gun then return end
-                        local cam = Workspace.CurrentCamera
-                        if not cam then return end
-                        local target = nil
-                        local targetPart = nil
-                        for _, player in pairs(Players:GetPlayers()) do
-                            if player ~= LocalPlayer and player.Character then
-                                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                                local torso = player.Character:FindFirstChild("Torso") or player.Character:FindFirstChild("UpperTorso")
-                                if hrp and torso then
-                                    local _, visible = cam:WorldToViewportPoint(torso.Position)
-                                    if visible then
-                                        local rayParams = RaycastParams.new()
-                                        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-                                        rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
-                                        local dir = torso.Position - cam.CFrame.Position
-                                        local result = Workspace:Raycast(cam.CFrame.Position, dir, rayParams)
-                                        if not result or result.Instance:IsDescendantOf(player.Character) then
-                                            target = player
-                                            targetPart = torso
-                                            break
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        if not target or not targetPart then return end
-                        local myHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        if not myHRP then return end
-                        local shootCFrame = CFrame.new(myHRP.Position, targetPart.Position)
-                        local targetCFrame = CFrame.new(targetPart.Position)
-                        local shootEvent = gun:FindFirstChild("ShootEvent") or gun:FindFirstChild("Shoot")
-                        if shootEvent then
-                            shootEvent:FireServer(shootCFrame, targetCFrame)
-                        end
-                    end)
-                    task.wait(0.8)
-                end
-            end)
-            local charAddedConn = LocalPlayer.CharacterAdded:Connect(function()
-                if autoShootVisibleActive then
-                    if autoShootVisibleLoop then task.cancel(autoShootVisibleLoop) end
-                    autoShootVisibleLoop = task.spawn(function()
-                        while autoShootVisibleActive do
-                            pcall(function()
-                                if getPlayerRole(LocalPlayer) ~= "Sheriff" then
-                                    Notify("No eres el Sheriff! Desactivado")
-                                    autoShootVisibleActive = false
-                                    return
-                                end
-                                local gun = nil
-                                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun") then
-                                    gun = LocalPlayer.Character.Gun
-                                elseif LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild("Gun") then
-                                    gun = LocalPlayer.Backpack.Gun
-                                    gun.Parent = LocalPlayer.Character
-                                end
-                                if not gun then return end
-                                local cam = Workspace.CurrentCamera
-                                if not cam then return end
-                                local target = nil
-                                local targetPart = nil
-                                for _, player in pairs(Players:GetPlayers()) do
-                                    if player ~= LocalPlayer and player.Character then
-                                        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                                        local torso = player.Character:FindFirstChild("Torso") or player.Character:FindFirstChild("UpperTorso")
-                                        if hrp and torso then
-                                            local _, visible = cam:WorldToViewportPoint(torso.Position)
-                                            if visible then
-                                                local rayParams = RaycastParams.new()
-                                                rayParams.FilterType = Enum.RaycastFilterType.Exclude
-                                                rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
-                                                local dir = torso.Position - cam.CFrame.Position
-                                                local result = Workspace:Raycast(cam.CFrame.Position, dir, rayParams)
-                                                if not result or result.Instance:IsDescendantOf(player.Character) then
-                                                    target = player
-                                                    targetPart = torso
-                                                    break
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                                if not target or not targetPart then return end
-                                local myHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                                if not myHRP then return end
-                                local shootCFrame = CFrame.new(myHRP.Position, targetPart.Position)
-                                local targetCFrame = CFrame.new(targetPart.Position)
-                                local shootEvent = gun:FindFirstChild("ShootEvent") or gun:FindFirstChild("Shoot")
-                                if shootEvent then
-                                    shootEvent:FireServer(shootCFrame, targetCFrame)
-                                end
-                            end)
-                            task.wait(0.8)
-                        end
-                    end)
-                end
-            end)
-            table.insert(autoShootVisibleConnections, charAddedConn)
-        else
-            autoShootVisibleActive = false
-            if autoShootVisibleLoop then
-                task.cancel(autoShootVisibleLoop)
-                autoShootVisibleLoop = nil
-            end
-            for _, conn in pairs(autoShootVisibleConnections) do
-                pcall(function() conn:Disconnect() end)
-            end
-            autoShootVisibleConnections = {}
-            Notify("Auto Disparar Visible: Desactivado")
-        end
-    end
-})
-
-MurdererTab:CreateSection("Funciones del Asesino")
-MurdererTab:CreateButton({Name = "Lanzar Cuchillo al Mas Cercano", Callback = function() KnifeThrow(false) end})
-MurdererTab:CreateToggle({
-    Name = "Lanzamiento Automatico",
-    CurrentValue = false,
-    Callback = function(v)
-        loopThrow = v
-        if v then
-            task.spawn(function()
-                while loopThrow do
-                    task.wait(1.5)
-                    KnifeThrow(true)
-                end
-            end)
-        end
-    end
-})
-MurdererTab:CreateToggle({Name = "Aparecer Cerca del Objetivo", CurrentValue = false, Callback = function(v) spawnAtPlayer = v end})
-MurdererTab:CreateButton({Name = "Matar al Mas Cercano", Callback = KillClosest})
-MurdererTab:CreateToggle({Name = "Aura Asesina", CurrentValue = false, Callback = ToggleKillAura})
-MurdererTab:CreateButton({Name = "Matar a Todos", Callback = KillEveryone})
-
-TeleportTab:CreateSection("Teletransportes")
-TeleportTab:CreateButton({Name = "Al Lobby", Callback = TeleportToLobby})
-TeleportTab:CreateButton({Name = "Al Mapa", Callback = TeleportToMap})
-TeleportTab:CreateButton({Name = "Al Arma Tirada", Callback = TeleportToDroppedGun})
-
-TrollTab:CreateSection("Empujar")
-TrollTab:CreateButton({
-    Name = "Empujar al Sheriff",
-    Callback = function()
-        local obj = FindSheriff()
-        if not obj then Notify("No se encontro al Sheriff"); return end
-        MiniFling(obj)
-    end
-})
-TrollTab:CreateButton({
-    Name = "Empujar al Asesino",
-    Callback = function()
-        local obj = FindMurderer()
-        if not obj then Notify("No se encontro al Asesino"); return end
-        MiniFling(obj)
-    end
-})
-
-CreditsTab:CreateSection("Creditos")
-CreditsTab:CreateLabel("Chituk (Chituk_09 Youtube)")
-CreditsTab:CreateLabel("Base por Pichigdasos y Dark.gg")
-CreditsTab:CreateSection("Redes Desarrolladores")
-CreditsTab:CreateButton({
-    Name = "Discord Dark",
-    Callback = function() CopiarAlPortapapeles("https://discord.gg/6G4RVBH9D", "Discord Dark") end
-})
-CreditsTab:CreateButton({
-    Name = "TikTok Dark",
-    Callback = function() CopiarAlPortapapeles("tiktok.com/@darkbimo", "TikTok Dark") end
-})
-CreditsTab:CreateButton({
-    Name = "YouTube Chituk",
-    Callback = function() CopiarAlPortapapeles("https://youtube.com/@chituk_9?si=vlU_jfNWu1duEOFZ", "YouTube Chituk") end
-})
-CreditsTab:CreateButton({
-    Name = "Discord Chituk",
-    Callback = function() CopiarAlPortapapeles("https://discord.gg/mdvByagDr3", "Discord Chituk") end
-})
-
-ReplicatedStorage:WaitForChild("Remotes", 10)
-local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-local gamepl = remotes and remotes:FindFirstChild("Gameplay")
-local evDatos = gamepl and gamepl:FindFirstChild("PlayerDataChanged")
-if evDatos and evDatos:IsA("RemoteEvent") then
-    evDatos.OnClientEvent:Connect(function(dat)
-        if type(dat) == "table" then
-            playerData = dat
-            if playerESP then ReloadESP() end
-        end
-    end)
-end
-
-Workspace.ChildAdded:Connect(function(ch)
-    if playerESP and ch == GetMap() then
-        task.spawn(function()
-            Notify("Mapa cargado, esperando...")
-            repeat task.wait(1) until not playerESP or FindSheriff() or FindMurderer()
-            if playerESP then ReloadESP() end
-        end)
-    end
-end)
-
-Workspace.ChildRemoved:Connect(function(ch)
-    if playerESP and ch == GetMap() then
-        playerData = {}
-        ESPMgr:ClearGroup("jugadores")
-        Notify("Ronda terminada")
-    end
-end)
-
-Workspace.DescendantAdded:Connect(function(desc)
-    if trapDetection and desc.Name == "Trap" and desc.Parent and (desc.Parent:IsA("Folder") or desc.Parent:IsA("Model")) then
-        if desc:IsA("BasePart") then desc.Transparency = 0 end
-        ESPMgr:Add(desc, {
-            Color = Color3.new(1, 0, 0), ShowArrow = false, ShowLabel = true,
-            Label = "TRAMPA", Group = "trampas"
-        })
-        Notify("Trampa detectada")
-    end
-    if gunDropESP and desc.Name == "GunDrop" then
-        ESPMgr:Add(desc, {
-            Color = Color3.new(0.95, 1, 0.07), ShowArrow = true, MinArrowDist = 999999,
-            Label = "ARMA TIRADA", ShowLabel = true, Group = "armas"
-        })
-        Notify("Arma disponible")
-        if autoGetDroppedGun then
-            task.spawn(function()
-                task.wait(1)
-                local m = GetMap()
-                local gd = m and m:FindFirstChild("GunDrop")
-                local c = LocalPlayer.Character
-                if not gd or not c then return end
-                local ant = c:GetPivot()
-                c:MoveTo(gd.Position)
-                LocalPlayer.Backpack.ChildAdded:Wait()
-                if LocalPlayer.Character then LocalPlayer.Character:PivotTo(ant) end
-            end)
-        end
-    end
-end)
-
-Workspace.DescendantRemoving:Connect(function(desc)
-    if gunDropESP and desc.Name == "GunDrop" then
-        ESPMgr:ClearGroup("armas")
-        local sher = FindSheriff()
-        if sher then Notify("Sheriff: " .. sher.DisplayName) end
-        if playerESP then ReloadESP() end
-    end
-end)
-
-Workspace.ChildAdded:Connect(function(hijo)
-    if hijo.Name == "ThrowingKnife" and ignoreKnifeThrow then hijo:Destroy() end
-end)
+print("✅ LISTO: Pestaña Animaciones creada | Auto‑Pistola nuevo | KillAll nuevo | Limpio y rápido")
