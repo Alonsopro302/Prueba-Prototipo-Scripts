@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then return end
@@ -10,7 +11,7 @@ if not LocalPlayer then return end
 local Window = Rayfield:CreateWindow({
     Name = "Chituk Hub",
     LoadingTitle = "Chituk Hub",
-    LoadingSubtitle = "Optimizado",
+    LoadingSubtitle = "Estable",
     ConfigurationSaving = {Enabled = false, FolderName = nil, FileName = nil}
 })
 
@@ -219,110 +220,201 @@ local function EquipTool(name)
     local it = LocalPlayer.Backpack:FindFirstChild(name) if it then c.Humanoid:EquipTool(it) return true end return false
 end
 
--- ==========================================
--- NUEVO: SISTEMA ANIMACIONES (ZOMBIE / NINJA)
--- ==========================================
-local ZombieConn, NinjaConn
-local ZombieOrig, NinjaOrig = {}, {}
+local ZombieActive = false
+local ZombieLoop
+local NinjaActive = false
+local NinjaLoop
 
-local function SaveAnimations(char)
-    if not char or not char:FindFirstChild("Animate") then return end
-    local anim = char.Animate
-    for _,v in ipairs({"Walk","Idle","Run","Jump","Fall"}) do
-        local seq = anim:FindFirstChild(v)
-        if seq and seq:IsA("Animation") then ZombieOrig[v]=seq.AnimationId; NinjaOrig[v]=seq.AnimationId end
+local function ActivarZombie(estado)
+    ZombieActive = estado
+    if ZombieLoop then ZombieLoop:Disconnect() end
+    if estado then
+        Notify("Animación Zombie activada")
+        ZombieLoop = RunService.Heartbeat:Connect(function()
+            local p = LocalPlayer.Character
+            if not p or not p:FindFirstChild("Animate") then return end
+            local anim = p.Animate
+            if anim:FindFirstChild("Walk") then anim.Walk.AnimationId = "rbxassetid://152528856" end
+            if anim:FindFirstChild("Idle") then anim.Idle.AnimationId = "rbxassetid://152528065" end
+            if anim:FindFirstChild("Run") then anim.Run.AnimationId = "rbxassetid://152528893" end
+            if anim:FindFirstChild("Jump") then anim.Jump.AnimationId = "rbxassetid://152529000" end
+            if anim:FindFirstChild("Fall") then anim.Fall.AnimationId = "rbxassetid://152528700" end
+        end)
+    else
+        Notify("Animación Zombie desactivada")
     end
 end
 
-local function SetZombie(state)
-    if ZombieConn then ZombieConn:Disconnect() end
-    if not state then Notify("Animación Zombie: DESACTIVADA"); return end
-    Notify("Animación Zombie: ACTIVADA")
-    ZombieConn = RunService.Heartbeat:Connect(function()
-        local c = LocalPlayer.Character if not c or not c:FindFirstChild("Animate") then return end
-        local anim = c.Animate
-        local list = {
-            Walk="rbxassetid://152528856",
-            Idle="rbxassetid://152528065",
-            Run="rbxassetid://152528893",
-            Jump="rbxassetid://152529000",
-            Fall="rbxassetid://152528700"
-        }
-        for k,id in pairs(list) do if anim:FindFirstChild(k) then anim[k].AnimationId=id end end
-    end)
-end
-
-local function SetNinja(state)
-    if NinjaConn then NinjaConn:Disconnect() end
-    if not state then Notify("Animación Ninja: DESACTIVADA"); return end
-    Notify("Animación Ninja: ACTIVADA")
-    NinjaConn = RunService.Heartbeat:Connect(function()
-        local c = LocalPlayer.Character if not c or not c:FindFirstChild("Animate") then return end
-        local anim = c.Animate
-        local list = {
-            Walk="rbxassetid://248262724",
-            Idle="rbxassetid://248262620",
-            Run="rbxassetid://248262790",
-            Jump="rbxassetid://248262850",
-            Fall="rbxassetid://248262910"
-        }
-        for k,id in pairs(list) do if anim:FindFirstChild(k) then anim[k].AnimationId=id end end
-    end)
-end
-
-LocalPlayer.CharacterAdded:Connect(SaveAnimations)
-if LocalPlayer.Character then SaveAnimations(LocalPlayer.Character) end
-
--- ==========================================
--- NUEVO: ASESINO — MATAR TODOS (DE CHITUKTEAMO)
--- ==========================================
-local function MurdererKillAllNew()
-    if FindRole("Murderer")~=LocalPlayer then Notify("No eres Asesino"); return end
-    if not EquipTool("Knife") then return end
-    local c = LocalPlayer.Character
-    local hrp = c and c:FindFirstChild("HumanoidRootPart")
-    local knife = c and c:FindFirstChild("Knife")
-    local stab = knife and knife:FindFirstChild("Stab")
-    if not hrp or not stab then Notify("Falta arma/evento"); return end
-    Notify("Ejecutando KillAll (versión nueva)")
-    for _,p in ipairs(Players:GetPlayers()) do
-        if p~=LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
-            local thrp = p.Character.HumanoidRootPart
-            thrp.Anchored = true
-            thrp.CFrame = hrp.CFrame * CFrame.new(0,0,-2.5)
-            task.wait(0.04)
-            p.Character.Humanoid.Health = 0
-            pcall(function() stab:FireServer("Slash") end)
-        end
+local function ActivarNinja(estado)
+    NinjaActive = estado
+    if NinjaLoop then NinjaLoop:Disconnect() end
+    if estado then
+        Notify("Animación Ninja activada")
+        NinjaLoop = RunService.Heartbeat:Connect(function()
+            local p = LocalPlayer.Character
+            if not p or not p:FindFirstChild("Animate") then return end
+            local anim = p.Animate
+            if anim:FindFirstChild("Walk") then anim.Walk.AnimationId = "rbxassetid://248262724" end
+            if anim:FindFirstChild("Idle") then anim.Idle.AnimationId = "rbxassetid://248262620" end
+            if anim:FindFirstChild("Run") then anim.Run.AnimationId = "rbxassetid://248262790" end
+            if anim:FindFirstChild("Jump") then anim.Jump.AnimationId = "rbxassetid://248262850" end
+            if anim:FindFirstChild("Fall") then anim.Fall.AnimationId = "rbxassetid://248262910" end
+        end)
+    else
+        Notify("Animación Ninja desactivada")
     end
 end
 
--- ==========================================
--- NUEVO: SHERIFF — AUTO AGARRAR PISTOLA (DE CHITUKTEAMO)
--- ==========================================
-local GrabGunConn
-local function AutoGrabGunNew(state)
-    if GrabGunConn then GrabGunConn:Disconnect() end
-    if not state then Notify("Auto‑Pistola: DESACTIVADO"); return end
-    Notify("Auto‑Pistola: ACTIVADO (método nuevo)")
-    GrabGunConn = RunService.Heartbeat:Connect(function()
-        local c = LocalPlayer.Character if not c or not c:FindFirstChild("HumanoidRootPart") then return end
-        local myPos = c.HumanoidRootPart.Position
-        local map = Workspace:FindFirstChildWhichIsA("Model",true,function(x) return x:FindFirstChild("GunDrop") end)
-        if not map then return end
-        local gun = map:FindFirstChild("GunDrop")
-        if gun and gun:IsA("BasePart") then
-            if (myPos - gun.Position).Magnitude < 12 then
-                pcall(function()
-                    firetouchinterest(c.HumanoidRootPart,gun,0)
-                    firetouchinterest(gun,c.HumanoidRootPart,0)
-                end)
-            end
+local player = Players.LocalPlayer
+local enabledAJ = false
+local autoJumpConnection = nil
+local screenGuiAJ = nil
+local toggleButtonAJ = nil
+
+local function createFixedButton()
+    if screenGuiAJ then return end
+    screenGuiAJ = Instance.new("ScreenGui")
+    screenGuiAJ.Name = "DeltaAutoJumpGUI"
+    screenGuiAJ.ResetOnSpawn = false
+    screenGuiAJ.Parent = player:WaitForChild("PlayerGui")
+    toggleButtonAJ = Instance.new("TextButton")
+    toggleButtonAJ.Size = UDim2.new(0, 60, 0, 60)
+    toggleButtonAJ.Position = UDim2.new(1, -80, 0, 20)
+    toggleButtonAJ.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    toggleButtonAJ.Text = "AUTO\nJUMP\nOFF"
+    toggleButtonAJ.TextColor3 = Color3.new(1, 1, 1)
+    toggleButtonAJ.TextScaled = true
+    toggleButtonAJ.Font = Enum.Font.GothamBold
+    toggleButtonAJ.BorderSizePixel = 0
+    toggleButtonAJ.BackgroundTransparency = 0.1
+    toggleButtonAJ.ZIndex = 200
+    toggleButtonAJ.Parent = screenGuiAJ
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = toggleButtonAJ
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 3
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Transparency = 0.5
+    stroke.Parent = toggleButtonAJ
+    local function updateButtonText()
+        if enabledAJ then
+            toggleButtonAJ.Text = "AUTO\nJUMP\nON"
+            toggleButtonAJ.BackgroundColor3 = Color3.fromRGB(0, 255, 80)
+        else
+            toggleButtonAJ.Text = "AUTO\nJUMP\nOFF"
+            toggleButtonAJ.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+        end
+    end
+    toggleButtonAJ.MouseButton1Click:Connect(function()
+        enabledAJ = not enabledAJ
+        updateButtonText()
+    end)
+    updateButtonText()
+end
+
+local function setupAutoJump(character)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    if not humanoid then return end
+    if autoJumpConnection then
+        autoJumpConnection:Disconnect()
+        autoJumpConnection = nil
+    end
+    autoJumpConnection = RunService.Heartbeat:Connect(function()
+        if not enabledAJ then return end
+        if not humanoid or humanoid.Health <= 0 then return end
+        local state = humanoid:GetState()
+        if state == Enum.HumanoidStateType.Running or state == Enum.HumanoidStateType.Landed then
+            humanoid.JumpPower = 60
+            humanoid.Jump = true
+            pcall(function()
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end)
         end
     end)
 end
 
--- Sheriff básico funcional
+player.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    setupAutoJump(char)
+end)
+
+if player.Character then
+    task.wait(0.5)
+    setupAutoJump(player.Character)
+end
+
+createFixedButton()
+
+local invisEnabled = false
+local invConnections = {}
+local invChar, invHum, invRoot
+local invParts = {}
+
+local function ClearInvis()
+    if _G.a then
+        local x,y,z = pairs(_G.a)
+        while true do
+            local k,v = zpcall(x,y,z)
+            if k==nil then break end
+            if typeof(v)=="function" or v.Disconnect then pcall(function() v:Disconnect() end) end
+        end
+        _G.a=nil
+    end
+    for _,c in pairs(invConnections) do pcall(function() c:Disconnect() end) end
+    invConnections={}
+end
+
+local function ScanParts()
+    invParts={}
+    if not invChar then return end
+    for _,d in ipairs(invChar:GetDescendants()) do
+        if d:IsA("BasePart") and d.Transparency==0 then invParts[#invParts+1]=d end
+    end
+end
+
+local function TogglePartVis()
+    for _,p in ipairs(invParts) do
+        if p and p.Parent then p.Transparency=(p.Transparency==0 and 0.5 or 0) end
+    end
+end
+
+local function SetupInvisSystem()
+    invChar=LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    invHum=invChar:WaitForChild("Humanoid")
+    invRoot=invChar:WaitForChild("HumanoidRootPart")
+    ScanParts()
+end
+
+local function SetInvis(state)
+    invEnabled=state
+    if invEnabled then
+        Notify("Invisibilidad ACTIVADA")
+        SetupInvisSystem()
+        invConnections[#invConnections+1]=RunService.Heartbeat:Connect(function()
+            if not invEnabled or not invRoot or not invHum then return end
+            local origC=invRoot.CFrame
+            local origCamOff=invHum.CameraOffset
+            local fakePos=origC*CFrame.new(0,-200000,0)
+            invRoot.CFrame=fakePos
+            invHum.CameraOffset=fakePos:ToObjectSpace(CFrame.new(origC.Position)).Position
+            RunService.RenderStepped:Wait()
+            invRoot.CFrame=origC
+            invHum.CameraOffset=origCamOff
+        end)
+        invConnections[#invConnections+1]=invChar:WaitForChild("HumanoidRootPart").ChildAdded:Connect(ScanParts)
+    else
+        Notify("Invisibilidad DESACTIVADA")
+        for _,c in pairs(invConnections) do pcall(function() c:Disconnect() end) end
+        invConnections={}
+        for _,p in ipairs(invParts) do if p and p.Parent then p.Transparency=0 end end
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    if invEnabled then ClearInvis() SetupInvisSystem() end
+end)
+
 local function SheriffShoot()
     if FindRole("Sheriff")~=LocalPlayer then Notify("No eres Sheriff") return end
     local tgt = FindRole("Murderer") if not tgt or not tgt.Character then Notify("Sin objetivo") return end
@@ -334,7 +426,6 @@ local function SheriffShoot()
     if hrp and thrp and shootEv then shootEv:FireServer(hrp.CFrame, thrp.Position) Notify("Disparo enviado") end
 end
 
--- AutoFarm compacto
 local FarmSpeed = 40
 local FarmConn
 local function AutoFarmToggle(state)
@@ -363,34 +454,29 @@ local function AutoFarmToggle(state)
     end)
 end
 
--- ==========================================
--- INTERFAZ FINAL COMPLETA
--- ==========================================
 MainTab:CreateSection("Sistema")
 MainTab:CreateToggle({Name="Noclip",CurrentValue=false,Callback=SetNoclip})
 MainTab:CreateSlider({Name="Velocidad",Range={16,300},Increment=1,CurrentValue=SpeedWalk,Callback=SetSpeed})
 MainTab:CreateToggle({Name="Anti‑Fling",CurrentValue=false,Callback=AntiFlingToggle})
+MainTab:CreateToggle({Name="Invisibilidad",CurrentValue=false,Callback=SetInvis})
+MainTab:CreateLabel("Auto Saltar: Botón en esquina superior derecha")
 
-AnimTab:CreateSection("Estilos de Movimiento")
-AnimTab:CreateToggle({Name="Animación Zombie",CurrentValue=false,Callback=SetZombie})
-AnimTab:CreateToggle({Name="Animación Ninja",CurrentValue=false,Callback=SetNinja})
+AnimTab:CreateSection("Estilos")
+AnimTab:CreateToggle({Name="Animación Zombie",CurrentValue=false,Callback=ActivarZombie})
+AnimTab:CreateToggle({Name="Animación Ninja",CurrentValue=false,Callback=ActivarNinja})
 
-SheriffTab:CreateSection("Herramientas Actualizadas")
-SheriffTab:CreateToggle({Name="Auto Agarrar Pistola (NUEVO)",CurrentValue=false,Callback=AutoGrabGunNew})
+SheriffTab:CreateSection("Acciones")
 SheriffTab:CreateButton({Name="Disparar al Asesino",Callback=SheriffShoot})
-
-MurdererTab:CreateSection("Poderes — Sistema Nuevo")
-MurdererTab:CreateButton({Name="Matar a Todos (Versión ChitukTeAmo)",Callback=MurdererKillAllNew})
 
 AutoFarmTab:CreateSection("Recolección")
 AutoFarmTab:CreateSlider({Name="Velocidad Farm",Range={15,130},Increment=1,CurrentValue=FarmSpeed,Callback=function(v) FarmSpeed=v end})
 AutoFarmTab:CreateToggle({Name="Activar AutoFarm",CurrentValue=false,Callback=AutoFarmToggle})
 
 CreditsTab:CreateSection("Créditos / Redes")
-CreditsTab:CreateLabel("Chituk Hub — Animaciones + Sistema Renovado")
+CreditsTab:CreateLabel("Chituk Hub — Original + Animaciones + AutoJump + Invis")
 CreditsTab:CreateButton({Name="Discord Dark",Callback=function() setclipboard and setclipboard("https://discord.gg/6G4RVBH9D") Notify("Copiado") end})
 CreditsTab:CreateButton({Name="TikTok Dark",Callback=function() setclipboard and setclipboard("tiktok.com/@darkbimo") Notify("Copiado") end})
 CreditsTab:CreateButton({Name="YouTube Chituk",Callback=function() setclipboard and setclipboard("https://youtube.com/@chituk_9?si=vlU_jfNWu1duEOFZ") Notify("Copiado") end})
 CreditsTab:CreateButton({Name="Discord Chituk",Callback=function() setclipboard and setclipboard("https://discord.gg/mdvByagDr3") Notify("Copiado") end})
 
-print("✅ LISTO: Pestaña Animaciones creada | Auto‑Pistola nuevo | KillAll nuevo | Limpio y rápido")
+print("✅ Listo: Invisibilidad integrada SOLO desde menú Rayfield, sin botones extraños")
