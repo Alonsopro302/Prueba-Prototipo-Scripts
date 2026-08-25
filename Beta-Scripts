@@ -17,24 +17,48 @@ local coinAutoCollect = false
 local coinLoop = nil
 local antiFlingEnabled = false
 local antiFlingConnection
-local autoShootTask
 local timerText, timerTask, killAuraConnection
 local playerData = {}
 local playerESP = false
 local hideMeEsp = false
 local gunDropESP = false
 local trapDetection = false
-local autoShooting = false
 local predictionAIEngine = false
 local predictionOngoing = false
 local predictionCooldown = false
-local autoGetDroppedGun = false
 local ignoreKnifeThrow = false
 local instakillshoot = false
 local spawnAtPlayer = false
 local loopThrow = false
 local shootOffset = 2.8
 local offsetToPingMult = 1
+
+local invisibleActive = false
+local invisibleConnections = {}
+local invisibleParts = {}
+local invisibleOriginalCFrame = nil
+local invisibleOriginalCameraOffset = nil
+
+local aimBotActive = false
+local aimBotLoop = nil
+
+local autoGrabGunActive = false
+local autoGrabGunLoop = nil
+
+local autoShootMurdererActive = false
+local autoShootMurdererLoop = nil
+local autoShootMurdererConnections = {}
+
+local autoShootVisibleActive = false
+local autoShootVisibleLoop = nil
+local autoShootVisibleConnections = {}
+
+local grabGunOnDeathConnection = nil
+
+local zombieAnimActive = false
+local zombieAnimCharConn = nil
+local ninjaAnimActive = false
+local ninjaAnimCharConn = nil
 
 local Window = Rayfield:CreateWindow({
     Name = "Chituk Hub",
@@ -50,6 +74,7 @@ local MainTab = Window:CreateTab("Principal")
 local ESPTab = Window:CreateTab("ESP / Visuales")
 local SheriffTab = Window:CreateTab("Sheriff")
 local MurdererTab = Window:CreateTab("Asesino")
+local AnimacionesTab = Window:CreateTab("Animaciones")
 local TeleportTab = Window:CreateTab("Teletransporte")
 local TrollTab = Window:CreateTab("Troll / Molestar")
 local AutoFarmTab = Window:CreateTab("AutoFarm")
@@ -138,6 +163,16 @@ LocalPlayer.CharacterAdded:Connect(function(pers)
     if NoclipEnabled then
         local raiz = pers:FindFirstChild("HumanoidRootPart")
         if raiz then raiz.CanCollide = false end
+    end
+    if invisibleActive then
+        invisibleActive = false
+        DesactivarInvisibilidad()
+    end
+    if zombieAnimActive then
+        AplicarZombie(pers)
+    end
+    if ninjaAnimActive then
+        AplicarNinja(pers)
     end
 end)
 
@@ -325,6 +360,36 @@ local function ObtenerMapa()
     end
     return nil
 end
+
+local function getPlayerRole(player)
+    if not player or not player.Character then return "Inocente" end
+    local char = player.Character
+    local backpack = player:FindFirstChild("Backpack")
+    for _, obj in pairs(char:GetChildren()) do
+        if obj:IsA("Tool") then
+            local name = obj.Name:lower()
+            if name:find("knife") or name:find("faca") then
+                return "Murderer"
+            elseif name:find("gun") or name:find("arma") or name:find("revolver") then
+                return "Sheriff"
+            end
+        end
+    end
+    if backpack then
+        for _, obj in pairs(backpack:GetChildren()) do
+            if obj:IsA("Tool") then
+                local name = obj.Name:lower()
+                if name:find("knife") or name:find("faca") then
+                    return "Murderer"
+                elseif name:find("gun") or name:find("arma") or name:find("revolver") then
+                    return "Sheriff"
+                end
+            end
+        end
+    end
+    return "Inocente"
+end
+
 local function EncontrarAsesino()
     for _, jug in ipairs(Players:GetPlayers()) do
         if jug.Backpack:FindFirstChild("Knife") then return jug end
@@ -340,6 +405,7 @@ local function EncontrarAsesino()
     end
     return nil
 end
+
 local function EncontrarSheriff()
     for _, jug in ipairs(Players:GetPlayers()) do
         if jug.Backpack:FindFirstChild("Gun") then return jug end
@@ -355,6 +421,7 @@ local function EncontrarSheriff()
     end
     return nil
 end
+
 local function EncontrarSheriffNoYo()
     for _, jug in ipairs(Players:GetPlayers()) do
         if jug~=LocalPlayer and jug.Backpack:FindFirstChild("Gun") then return jug end
@@ -370,6 +437,7 @@ local function EncontrarSheriffNoYo()
     end
     return nil
 end
+
 local function RecargarESP()
     if not playerESP then return end
     ESPContainer:EliminarGrupo("jugadores")
@@ -394,6 +462,7 @@ local function RecargarESP()
         end
     end
 end
+
 local function EncontrarJugadorCercano()
     local cercano, distMin = nil, math.huge
     local pers = LocalPlayer.Character
@@ -410,6 +479,7 @@ local function EncontrarJugadorCercano()
     end
     return cercano
 end
+
 local function ObtenerPosicionPredicha(jug, desplazamiento)
     if not jug or not jug.Character then return Vector3.zero end
     local pers = jug.Character
@@ -436,6 +506,7 @@ local function ObtenerPosicionPredicha(jug, desplazamiento)
     posPredicha *= ((LocalPlayer:GetNetworkPing()*1000)*((offsetToPingMult-1)*0.01)+1)
     return posPredicha
 end
+
 local function EquiparHerramienta(nombre)
     local pers = LocalPlayer.Character
     local hum = pers and pers:FindFirstChildOfClass("Humanoid")
@@ -446,26 +517,656 @@ local function EquiparHerramienta(nombre)
     hum:EquipTool(herramienta)
     return pers:FindFirstChild(nombre)~=nil
 end
-local function DispararAsesino()
-    if EncontrarSheriff()~=LocalPlayer then Notify("No eres Sheriff"); return end
-    local objetivo = EncontrarAsesino() or EncontrarSheriffNoYo()
-    if not objetivo or not objetivo.Character then Notify("Objetivo no hallado"); return end
-    if not EquiparHerramienta("Gun") then return end
-    local pers = LocalPlayer.Character
-    local manoDerecha = pers and pers:FindFirstChild("RightHand")
-    local raizObj = objetivo.Character:FindFirstChild("HumanoidRootPart")
-    local arma = pers:FindFirstChild("Gun")
-    local eventoDisp = arma and arma:FindFirstChild("Shoot")
-    if not manoDerecha or not raizObj or not eventoDisp then Notify("Partes de arma faltantes"); return end
-    local posPred = ObtenerPosicionPredicha(objetivo, shootOffset)
-    local args
-    if instakillshoot then
-        args={CFrame.new(raizObj.Position+Vector3.new(0,1,0)), CFrame.new(raizObj.Position)}
-    else
-        args={CFrame.new(manoDerecha.Position), CFrame.new(posPred)}
+
+local function touchInterests()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("TouchTransmitter") then
+            pcall(function()
+                firetouchinterest(root, v.Parent, 0)
+            end)
+        end
     end
-    eventoDisp:FireServer(unpack(args))
+    Notify("Touch Interests", "Fired all", 1)
 end
+
+local function ActivarInvisibilidad()
+    if invisibleActive then return end
+    local char = LocalPlayer.Character
+    if not char then
+        Notify("Necesitas personaje")
+        return false
+    end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
+    if not root or not hum then
+        Notify("Personaje incompleto")
+        return false
+    end
+    invisibleActive = true
+    invisibleParts = {}
+    for _, v in pairs(char:GetDescendants()) do
+        if v:IsA("BasePart") and v.Transparency == 0 then
+            table.insert(invisibleParts, v)
+        end
+    end
+    for _, v in pairs(invisibleParts) do
+        v.Transparency = 0.5
+    end
+    invisibleOriginalCFrame = root.CFrame
+    invisibleOriginalCameraOffset = hum.CameraOffset
+    local conn = RunService.Heartbeat:Connect(function()
+        if not invisibleActive then return end
+        local curChar = LocalPlayer.Character
+        if not curChar then return end
+        local curRoot = curChar:FindFirstChild("HumanoidRootPart")
+        local curHum = curChar:FindFirstChild("Humanoid")
+        if not curRoot or not curHum then return end
+        local _CFrame = curRoot.CFrame
+        local _CameraOffset = curHum.CameraOffset
+        local v40 = _CFrame * CFrame.new(0, -200000, 0)
+        local _Position = v40:ToObjectSpace(CFrame.new(_CFrame.Position)).Position
+        curRoot.CFrame = v40
+        curHum.CameraOffset = _Position
+        RunService.RenderStepped:Wait()
+        curRoot.CFrame = _CFrame
+        curHum.CameraOffset = _CameraOffset
+    end)
+    table.insert(invisibleConnections, conn)
+    Notify("Invisibilidad: ACTIVADA")
+    return true
+end
+
+function DesactivarInvisibilidad()
+    invisibleActive = false
+    for _, conn in pairs(invisibleConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    invisibleConnections = {}
+    for _, v in pairs(invisibleParts) do
+        if v and v.Parent then
+            v.Transparency = 0
+        end
+    end
+    invisibleParts = {}
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum and invisibleOriginalCameraOffset then
+            hum.CameraOffset = invisibleOriginalCameraOffset
+        end
+    end
+    invisibleOriginalCFrame = nil
+    invisibleOriginalCameraOffset = nil
+    Notify("Invisibilidad: DESACTIVADA")
+end
+
+local function ToggleInvisibilidad(valor)
+    if valor then
+        ActivarInvisibilidad()
+    else
+        DesactivarInvisibilidad()
+    end
+end
+
+local function ActivarAimBot()
+    if aimBotActive then return end
+    aimBotActive = true
+    aimBotLoop = task.spawn(function()
+        while aimBotActive do
+            pcall(function()
+                if getPlayerRole(LocalPlayer) == "Sheriff" then
+                    local cam = Workspace.CurrentCamera
+                    if not cam then return end
+                    local murderer = nil
+                    local murdererHead = nil
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if p ~= LocalPlayer and p.Character then
+                            local role = getPlayerRole(p)
+                            if role == "Murderer" then
+                                local head = p.Character:FindFirstChild("Head")
+                                if head then
+                                    murderer = p
+                                    murdererHead = head
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    if murderer and murdererHead then
+                        cam.CFrame = CFrame.new(cam.CFrame.Position, murdererHead.Position)
+                    end
+                end
+            end)
+            task.wait()
+        end
+    end)
+    Notify("Aim Bot Murder: ACTIVADO")
+end
+
+local function DesactivarAimBot()
+    aimBotActive = false
+    if aimBotLoop then
+        task.cancel(aimBotLoop)
+        aimBotLoop = nil
+    end
+    Notify("Aim Bot Murder: DESACTIVADO")
+end
+
+local function ToggleAimBot(valor)
+    if valor then
+        ActivarAimBot()
+    else
+        DesactivarAimBot()
+    end
+end
+
+local function GrabGun()
+    touchInterests()
+end
+
+local function GrabGunOnDeath()
+    pcall(function()
+        if getPlayerRole(LocalPlayer) == "Sheriff" then
+            Notify("Eres el Sheriff!")
+            return
+        end
+        local sheriff = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then
+                local role = getPlayerRole(p)
+                if role == "Sheriff" then
+                    sheriff = p
+                    break
+                end
+            end
+        end
+        if not sheriff then
+            Notify("No se encontro Sheriff")
+            return
+        end
+        Notify("Monitoreando Sheriff...")
+        if grabGunOnDeathConnection then
+            grabGunOnDeathConnection:Disconnect()
+            grabGunOnDeathConnection = nil
+        end
+        grabGunOnDeathConnection = RunService.Heartbeat:Connect(function()
+            if not sheriff or not sheriff.Character or not sheriff.Character:FindFirstChild("Humanoid") then
+                grabGunOnDeathConnection:Disconnect()
+                grabGunOnDeathConnection = nil
+                Notify("Sheriff murio! Ejecutando Touch Interests...")
+                touchInterests()
+                return
+            end
+            local hum = sheriff.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health <= 0 then
+                grabGunOnDeathConnection:Disconnect()
+                grabGunOnDeathConnection = nil
+                Notify("Sheriff murio! Ejecutando Touch Interests...")
+                touchInterests()
+                return
+            end
+        end)
+    end)
+end
+
+local function ActivarAutoGrabGun()
+    if autoGrabGunActive then return end
+    autoGrabGunActive = true
+    autoGrabGunLoop = task.spawn(function()
+        while autoGrabGunActive do
+            pcall(function()
+                if not LocalPlayer:GetAttribute('Alive') then return end
+                if getPlayerRole(LocalPlayer) == "Murderer" then return end
+                local map = nil
+                for _, obj in pairs(Workspace:GetChildren()) do
+                    if obj:GetAttribute('MapID') then
+                        map = obj
+                        break
+                    end
+                end
+                if not map then return end
+                local hasGun = false
+                if LocalPlayer.Character then
+                    for _, tool in pairs(LocalPlayer.Character:GetChildren()) do
+                        if tool:IsA("Tool") and tool.Name:lower():find("gun") then
+                            hasGun = true
+                            break
+                        end
+                    end
+                end
+                if not hasGun then
+                    local gunDrop = map:FindFirstChild("GunDrop")
+                    if gunDrop and LocalPlayer.Character then
+                        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            gunDrop.CFrame = root.CFrame
+                        end
+                    end
+                end
+            end)
+            task.wait(1)
+        end
+    end)
+    Notify("Auto Grab Gun: ACTIVADO")
+end
+
+local function DesactivarAutoGrabGun()
+    autoGrabGunActive = false
+    if autoGrabGunLoop then
+        task.cancel(autoGrabGunLoop)
+        autoGrabGunLoop = nil
+    end
+    Notify("Auto Grab Gun: DESACTIVADO")
+end
+
+local function ToggleAutoGrabGun(valor)
+    if valor then
+        ActivarAutoGrabGun()
+    else
+        DesactivarAutoGrabGun()
+    end
+end
+
+local function AutoShootMurdererLoop()
+    pcall(function()
+        if getPlayerRole(LocalPlayer) ~= "Sheriff" then
+            Notify("No eres Sheriff! Desactivado")
+            DesactivarAutoShootMurderer()
+            return
+        end
+        local gun = nil
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild('Gun') then
+            gun = LocalPlayer.Character.Gun
+        elseif LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild('Gun') then
+            gun = LocalPlayer.Backpack.Gun
+            gun.Parent = LocalPlayer.Character
+        end
+        if not gun then return end
+        local murderer = nil
+        local getPlayerData = ReplicatedStorage:FindFirstChild('GetPlayerData', true)
+        if getPlayerData then
+            local success, data = pcall(function() return getPlayerData:InvokeServer() end)
+            if success and data then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player:GetAttribute('Alive') == true then
+                        local playerData = data[player.Name]
+                        if playerData and playerData.Role and playerData.Role == 'Murderer' then
+                            murderer = player
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        if not murderer then
+            murderer = EncontrarAsesino()
+        end
+        if not murderer then return end
+        local murdererChar = murderer.Character
+        if not murdererChar then return end
+        local murdererHRP = murdererChar:FindFirstChild('HumanoidRootPart')
+        local murdererTorso = murdererChar:FindFirstChild('Torso') or murdererChar:FindFirstChild('UpperTorso')
+        if not murdererHRP or not murdererTorso then return end
+        if not LocalPlayer.Character then return end
+        local myHRP = LocalPlayer.Character:FindFirstChild('HumanoidRootPart')
+        if not myHRP then return end
+        local stats = game:GetService('Stats')
+        local ping = stats.Network.ServerStatsItem['Data Ping']:GetValue()
+        local pingSeconds = (ping / 1000) * 1.25
+        local murdererVelocity = murdererHRP.Velocity
+        local speed = murdererVelocity.Magnitude
+        local targetPos
+        if speed < 1 then
+            targetPos = murdererTorso.Position
+        else
+            targetPos = murdererTorso.Position + (murdererVelocity * pingSeconds)
+        end
+        local shootCFrame = CFrame.new(myHRP.Position, targetPos)
+        local targetCFrame = CFrame.new(targetPos)
+        local shootEvent = gun:FindFirstChild('ShootEvent') or gun:FindFirstChild('Shoot')
+        if shootEvent then
+            shootEvent:FireServer(shootCFrame, targetCFrame)
+        end
+    end)
+end
+
+local function ActivarAutoShootMurderer()
+    if autoShootMurdererActive then return end
+    if getPlayerRole(LocalPlayer) ~= "Sheriff" then
+        Notify("No eres Sheriff!")
+        return
+    end
+    autoShootMurdererActive = true
+    Notify("Auto Shoot Murderer: ACTIVADO")
+    autoShootMurdererLoop = task.spawn(function()
+        while autoShootMurdererActive do
+            AutoShootMurdererLoop()
+            task.wait(1)
+        end
+    end)
+    local charAddedConn = LocalPlayer.CharacterAdded:Connect(function()
+        if autoShootMurdererActive then
+            if autoShootMurdererLoop then task.cancel(autoShootMurdererLoop) end
+            autoShootMurdererLoop = task.spawn(function()
+                while autoShootMurdererActive do
+                    AutoShootMurdererLoop()
+                    task.wait(1)
+                end
+            end)
+        end
+    end)
+    table.insert(autoShootMurdererConnections, charAddedConn)
+end
+
+local function DesactivarAutoShootMurderer()
+    autoShootMurdererActive = false
+    if autoShootMurdererLoop then
+        task.cancel(autoShootMurdererLoop)
+        autoShootMurdererLoop = nil
+    end
+    for _, conn in pairs(autoShootMurdererConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    autoShootMurdererConnections = {}
+    Notify("Auto Shoot Murderer: DESACTIVADO")
+end
+
+local function ToggleAutoShootMurderer(valor)
+    if valor then
+        ActivarAutoShootMurderer()
+    else
+        DesactivarAutoShootMurderer()
+    end
+end
+
+local function AutoShootVisibleLoop()
+    pcall(function()
+        if getPlayerRole(LocalPlayer) ~= "Sheriff" then
+            Notify("No eres Sheriff! Desactivado")
+            DesactivarAutoShootVisible()
+            return
+        end
+        local gun = nil
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild('Gun') then
+            gun = LocalPlayer.Character.Gun
+        elseif LocalPlayer.Backpack and LocalPlayer.Backpack:FindFirstChild('Gun') then
+            gun = LocalPlayer.Backpack.Gun
+            gun.Parent = LocalPlayer.Character
+        end
+        if not gun then return end
+        local murderer = nil
+        local getPlayerData = ReplicatedStorage:FindFirstChild('GetPlayerData', true)
+        if getPlayerData then
+            local success, data = pcall(function() return getPlayerData:InvokeServer() end)
+            if success and data then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player:GetAttribute('Alive') == true then
+                        local playerData = data[player.Name]
+                        if playerData and playerData.Role and playerData.Role == 'Murderer' then
+                            murderer = player
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        if not murderer then
+            murderer = EncontrarAsesino()
+        end
+        if not murderer then return end
+        local murdererChar = murderer.Character
+        if not murdererChar then return end
+        local murdererHRP = murdererChar:FindFirstChild('HumanoidRootPart')
+        if not murdererHRP then return end
+        if not LocalPlayer.Character then return end
+        local myHRP = LocalPlayer.Character:FindFirstChild('HumanoidRootPart')
+        if not myHRP then return end
+        local camera = Workspace.CurrentCamera
+        local viewportPoint, onScreen = camera:WorldToViewportPoint(murdererHRP.Position)
+        if onScreen then
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+            raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+            local rayOrigin = camera.CFrame.Position
+            local rayDirection = (murdererHRP.Position - rayOrigin).Unit * 1000
+            local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+            if not rayResult or rayResult.Instance:IsDescendantOf(murdererChar) then
+                local shooterTorso = murdererChar:FindFirstChild('Torso') or murdererChar:FindFirstChild('UpperTorso')
+                if shooterTorso then
+                    local targetPos = shooterTorso.Position
+                    local shootCFrame = CFrame.new(myHRP.Position, targetPos)
+                    local targetCFrame = CFrame.new(targetPos)
+                    local shootEvent = gun:FindFirstChild('ShootEvent') or gun:FindFirstChild('Shoot')
+                    if shootEvent then
+                        shootEvent:FireServer(shootCFrame, targetCFrame)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function ActivarAutoShootVisible()
+    if autoShootVisibleActive then return end
+    if getPlayerRole(LocalPlayer) ~= "Sheriff" then
+        Notify("No eres Sheriff!")
+        return
+    end
+    autoShootVisibleActive = true
+    Notify("Auto Shoot Visible: ACTIVADO")
+    autoShootVisibleLoop = task.spawn(function()
+        while autoShootVisibleActive do
+            AutoShootVisibleLoop()
+            task.wait(1)
+        end
+    end)
+    local charAddedConn = LocalPlayer.CharacterAdded:Connect(function()
+        if autoShootVisibleActive then
+            if autoShootVisibleLoop then task.cancel(autoShootVisibleLoop) end
+            autoShootVisibleLoop = task.spawn(function()
+                while autoShootVisibleActive do
+                    AutoShootVisibleLoop()
+                    task.wait(1)
+                end
+            end)
+        end
+    end)
+    table.insert(autoShootVisibleConnections, charAddedConn)
+end
+
+local function DesactivarAutoShootVisible()
+    autoShootVisibleActive = false
+    if autoShootVisibleLoop then
+        task.cancel(autoShootVisibleLoop)
+        autoShootVisibleLoop = nil
+    end
+    for _, conn in pairs(autoShootVisibleConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    autoShootVisibleConnections = {}
+    Notify("Auto Shoot Visible: DESACTIVADO")
+end
+
+local function ToggleAutoShootVisible(valor)
+    if valor then
+        ActivarAutoShootVisible()
+    else
+        DesactivarAutoShootVisible()
+    end
+end
+
+local ZOMBIE_IDS = {
+    "rbxassetid://616158929","rbxassetid://616160636",
+    "rbxassetid://616168032","rbxassetid://616163682",
+    "rbxassetid://616161997","rbxassetid://616157476",
+    "rbxassetid://616156119","rbxassetid://616165109",
+    "rbxassetid://616166655"
+}
+
+local NINJA_IDS = {
+    idle1    = "rbxassetid://656117400",
+    idle2    = "rbxassetid://656118341",
+    walk     = "rbxassetid://656121766",
+    run      = "rbxassetid://656118852",
+    jump     = "rbxassetid://656117878",
+    fall     = "rbxassetid://656115606",
+    climb    = "rbxassetid://656114359",
+    swim     = "rbxassetid://656119721",
+    swimidle = "rbxassetid://707876443"
+}
+
+local DEFAULT_IDS = {}
+
+function AplicarZombie(char)
+    if not char then return end
+    local a = char:FindFirstChild("Animate")
+    if not a then return end
+    if not DEFAULT_IDS.idle1 and a:FindFirstChild("idle") and a.idle:FindFirstChild("Animation1") then
+        DEFAULT_IDS.idle1 = a.idle.Animation1.AnimationId
+        DEFAULT_IDS.idle2 = a.idle:FindFirstChild("Animation2") and a.idle.Animation2.AnimationId
+        DEFAULT_IDS.walk = a:FindFirstChild("walk") and a.walk:FindFirstChild("WalkAnim") and a.walk.WalkAnim.AnimationId
+        DEFAULT_IDS.run = a:FindFirstChild("run") and a.run:FindFirstChild("RunAnim") and a.run.RunAnim.AnimationId
+        DEFAULT_IDS.jump = a:FindFirstChild("jump") and a.jump:FindFirstChild("JumpAnim") and a.jump.JumpAnim.AnimationId
+        DEFAULT_IDS.fall = a:FindFirstChild("fall") and a.fall:FindFirstChild("FallAnim") and a.fall.FallAnim.AnimationId
+        DEFAULT_IDS.climb = a:FindFirstChild("climb") and a.climb:FindFirstChild("ClimbAnim") and a.climb.ClimbAnim.AnimationId
+        DEFAULT_IDS.swim = a:FindFirstChild("swim") and a.swim:FindFirstChild("SwimAnim") and a.swim.SwimAnim.AnimationId
+        DEFAULT_IDS.swimidle = a:FindFirstChild("swimidle") and a.swimidle:FindFirstChild("SwimIdleAnim") and a.swimidle.SwimIdleAnim.AnimationId
+    end
+    pcall(function()
+        a.idle.Animation1.AnimationId = ZOMBIE_IDS[1]
+        if a.idle:FindFirstChild("Animation2") then a.idle.Animation2.AnimationId = ZOMBIE_IDS[2] end
+        if a:FindFirstChild("walk") and a.walk:FindFirstChild("WalkAnim") then a.walk.WalkAnim.AnimationId = ZOMBIE_IDS[3] end
+        if a:FindFirstChild("run") and a.run:FindFirstChild("RunAnim") then a.run.RunAnim.AnimationId = ZOMBIE_IDS[4] end
+        if a:FindFirstChild("jump") and a.jump:FindFirstChild("JumpAnim") then a.jump.JumpAnim.AnimationId = ZOMBIE_IDS[5] end
+        if a:FindFirstChild("fall") and a.fall:FindFirstChild("FallAnim") then a.fall.FallAnim.AnimationId = ZOMBIE_IDS[6] end
+        if a:FindFirstChild("climb") and a.climb:FindFirstChild("ClimbAnim") then a.climb.ClimbAnim.AnimationId = ZOMBIE_IDS[7] end
+        if a:FindFirstChild("swim") and a.swim:FindFirstChild("SwimAnim") then a.swim.SwimAnim.AnimationId = ZOMBIE_IDS[8] end
+        if a:FindFirstChild("swimidle") and a.swimidle:FindFirstChild("SwimIdleAnim") then a.swimidle.SwimIdleAnim.AnimationId = ZOMBIE_IDS[9] end
+    end)
+end
+
+function AplicarNinja(char)
+    if not char or not char:FindFirstChild("Humanoid") then return end
+    task.wait(0.3)
+    local animate = char:FindFirstChild("Animate")
+    if not animate then return end
+    if not DEFAULT_IDS.idle1 and animate:FindFirstChild("idle") and animate.idle:FindFirstChild("Animation1") then
+        DEFAULT_IDS.idle1 = animate.idle.Animation1.AnimationId
+        DEFAULT_IDS.idle2 = animate.idle:FindFirstChild("Animation2") and animate.idle.Animation2.AnimationId
+        DEFAULT_IDS.walk = animate:FindFirstChild("walk") and animate.walk:FindFirstChild("WalkAnim") and animate.walk.WalkAnim.AnimationId
+        DEFAULT_IDS.run = animate:FindFirstChild("run") and animate.run:FindFirstChild("RunAnim") and animate.run.RunAnim.AnimationId
+        DEFAULT_IDS.jump = animate:FindFirstChild("jump") and animate.jump:FindFirstChild("JumpAnim") and animate.jump.JumpAnim.AnimationId
+        DEFAULT_IDS.fall = animate:FindFirstChild("fall") and animate.fall:FindFirstChild("FallAnim") and animate.fall.FallAnim.AnimationId
+        DEFAULT_IDS.climb = animate:FindFirstChild("climb") and animate.climb:FindFirstChild("ClimbAnim") and animate.climb.ClimbAnim.AnimationId
+        DEFAULT_IDS.swim = animate:FindFirstChild("swim") and animate.swim:FindFirstChild("SwimAnim") and animate.swim.SwimAnim.AnimationId
+        DEFAULT_IDS.swimidle = animate:FindFirstChild("swimidle") and animate.swimidle:FindFirstChild("SwimIdleAnim") and animate.swimidle.SwimIdleAnim.AnimationId
+    end
+    pcall(function()
+        if animate:FindFirstChild("idle") then
+            animate.idle.Animation1.AnimationId = NINJA_IDS.idle1
+            if animate.idle:FindFirstChild("Animation2") then
+                animate.idle.Animation2.AnimationId = NINJA_IDS.idle2
+            end
+        end
+        if animate:FindFirstChild("walk") and animate.walk:FindFirstChild("WalkAnim") then
+            animate.walk.WalkAnim.AnimationId = NINJA_IDS.walk
+        end
+        if animate:FindFirstChild("run") and animate.run:FindFirstChild("RunAnim") then
+            animate.run.RunAnim.AnimationId = NINJA_IDS.run
+        end
+        if animate:FindFirstChild("jump") and animate.jump:FindFirstChild("JumpAnim") then
+            animate.jump.JumpAnim.AnimationId = NINJA_IDS.jump
+        end
+        if animate:FindFirstChild("fall") and animate.fall:FindFirstChild("FallAnim") then
+            animate.fall.FallAnim.AnimationId = NINJA_IDS.fall
+        end
+        if animate:FindFirstChild("climb") and animate.climb:FindFirstChild("ClimbAnim") then
+            animate.climb.ClimbAnim.AnimationId = NINJA_IDS.climb
+        end
+        if animate:FindFirstChild("swim") and animate.swim:FindFirstChild("SwimAnim") then
+            animate.swim.SwimAnim.AnimationId = NINJA_IDS.swim
+        end
+        if animate:FindFirstChild("swimidle") and animate.swimidle:FindFirstChild("SwimIdleAnim") then
+            animate.swimidle.SwimIdleAnim.AnimationId = NINJA_IDS.swimidle
+        end
+    end)
+end
+
+function RestaurarAnimaciones(char)
+    if not char then return end
+    local animate = char:FindFirstChild("Animate")
+    if not animate or not DEFAULT_IDS.idle1 then return end
+    pcall(function()
+        if animate:FindFirstChild("idle") then
+            animate.idle.Animation1.AnimationId = DEFAULT_IDS.idle1
+            if animate.idle:FindFirstChild("Animation2") and DEFAULT_IDS.idle2 then
+                animate.idle.Animation2.AnimationId = DEFAULT_IDS.idle2
+            end
+        end
+        if animate:FindFirstChild("walk") and animate.walk:FindFirstChild("WalkAnim") and DEFAULT_IDS.walk then
+            animate.walk.WalkAnim.AnimationId = DEFAULT_IDS.walk
+        end
+        if animate:FindFirstChild("run") and animate.run:FindFirstChild("RunAnim") and DEFAULT_IDS.run then
+            animate.run.RunAnim.AnimationId = DEFAULT_IDS.run
+        end
+        if animate:FindFirstChild("jump") and animate.jump:FindFirstChild("JumpAnim") and DEFAULT_IDS.jump then
+            animate.jump.JumpAnim.AnimationId = DEFAULT_IDS.jump
+        end
+        if animate:FindFirstChild("fall") and animate.fall:FindFirstChild("FallAnim") and DEFAULT_IDS.fall then
+            animate.fall.FallAnim.AnimationId = DEFAULT_IDS.fall
+        end
+        if animate:FindFirstChild("climb") and animate.climb:FindFirstChild("ClimbAnim") and DEFAULT_IDS.climb then
+            animate.climb.ClimbAnim.AnimationId = DEFAULT_IDS.climb
+        end
+        if animate:FindFirstChild("swim") and animate.swim:FindFirstChild("SwimAnim") and DEFAULT_IDS.swim then
+            animate.swim.SwimAnim.AnimationId = DEFAULT_IDS.swim
+        end
+        if animate:FindFirstChild("swimidle") and animate.swimidle:FindFirstChild("SwimIdleAnim") and DEFAULT_IDS.swimidle then
+            animate.swimidle.SwimIdleAnim.AnimationId = DEFAULT_IDS.swimidle
+        end
+    end)
+end
+
+local function ToggleZombie(valor)
+    zombieAnimActive = valor
+    if valor then
+        ninjaAnimActive = false
+        local char = LocalPlayer.Character
+        if char then AplicarZombie(char) end
+        Notify("Animacion Zombie: ACTIVADA")
+    else
+        local char = LocalPlayer.Character
+        if char then RestaurarAnimaciones(char) end
+        Notify("Animacion Zombie: DESACTIVADA")
+    end
+end
+
+local function ToggleNinja(valor)
+    ninjaAnimActive = valor
+    if valor then
+        zombieAnimActive = false
+        local char = LocalPlayer.Character
+        if char then AplicarNinja(char) end
+        Notify("Animacion Ninja: ACTIVADA")
+    else
+        local char = LocalPlayer.Character
+        if char then RestaurarAnimaciones(char) end
+        Notify("Animacion Ninja: DESACTIVADA")
+    end
+end
+
+local function ResetAnimaciones()
+    zombieAnimActive = false
+    ninjaAnimActive = false
+    local char = LocalPlayer.Character
+    if char then RestaurarAnimaciones(char) end
+    Notify("Animaciones restauradas")
+end
+
 local function LanzarCuchillo(silencioso)
     if EncontrarAsesino()~=LocalPlayer then if not silencioso then Notify("No eres Asesino") end; return end
     if not EquiparHerramienta("Knife") then return end
@@ -483,6 +1184,7 @@ local function LanzarCuchillo(silencioso)
     if spawnAtPlayer then args[1] = CFrame.new(raizCercano.Position + raizCercano.CFrame.LookVector*5) end
     eventoLanzar:FireServer(unpack(args))
 end
+
 local function TeleportarVestibulo()
     local vestibulo = Workspace:FindFirstChild("Lobby")
     local pers = LocalPlayer.Character
@@ -492,6 +1194,7 @@ local function TeleportarVestibulo()
     if not puntoSalida then Notify("Sin punto de aparicion"); return end
     pers:MoveTo(puntoSalida.Position)
 end
+
 local function TeleportarMapa()
     local mapa = ObtenerMapa()
     local pers = LocalPlayer.Character
@@ -502,6 +1205,7 @@ local function TeleportarMapa()
     local elegido = listaPuntos[math.random(1,#listaPuntos)]
     if elegido:IsA("BasePart") then pers:MoveTo(elegido.Position) else pers:PivotTo(elegido:GetPivot()) end
 end
+
 local function TeleportarArmaCaida()
     local mapa = ObtenerMapa()
     local pers = LocalPlayer.Character
@@ -514,6 +1218,7 @@ local function TeleportarArmaCaida()
         if LocalPlayer.Character then LocalPlayer.Character:PivotTo(posAntes) end
     end)
 end
+
 local function LanzarFling(objetivo)
     if not objetivo or not objetivo.Character then Notify("Jugador invalido"); return end
     local pers = LocalPlayer.Character
@@ -566,6 +1271,7 @@ local function LanzarFling(objetivo)
     end
     Workspace.FallenPartsDestroyHeight=altDestruccion
 end
+
 local function AlternarAntiFling(valor)
     antiFlingEnabled=valor
     if antiFlingConnection then antiFlingConnection:Disconnect(); antiFlingConnection=nil end
@@ -587,6 +1293,7 @@ local function AlternarAntiFling(valor)
         Notify("Anti Fling Desactivado")
     end
 end
+
 local function AlternarESPJugadores(valor)
     playerESP=valor
     if valor then
@@ -599,6 +1306,7 @@ local function AlternarESPJugadores(valor)
         else RecargarESP() end
     else ESPContainer:EliminarGrupo("jugadores") end
 end
+
 local function AlternarESPArmas(valor)
     gunDropESP=valor
     if not valor then ESPContainer:EliminarGrupo("armas"); return end
@@ -610,6 +1318,7 @@ local function AlternarESPArmas(valor)
         Notify("Arma detectada - resaltada amarillo")
     end
 end
+
 local function AlternarESPTrampas(valor)
     trapDetection=valor
     if not valor then ESPContainer:EliminarGrupo("trampas"); return end
@@ -620,73 +1329,139 @@ local function AlternarESPTrampas(valor)
         end
     end
 end
-local function AlternarDisparoAuto(valor)
-    autoShooting=valor
-    if autoShootTask then task.cancel(autoShootTask); autoShootTask=nil end
+
+local function AlternarTiempoRonda(valor)
+    if timerTask then task.cancel(timerTask); timerTask=nil end
+    if timerText then timerText:Destroy(); timerText=nil end
     if not valor then return end
-    autoShootTask=task.spawn(function()
-        while autoShooting do
-            task.wait(0.1)
-            if EncontrarSheriff()==LocalPlayer then
-                local asesinoObjetivo = EncontrarAsesino()
-                if asesinoObjetivo and asesinoObjetivo.Character then
-                    local persAct = LocalPlayer.Character
-                    local raizAsesino = asesinoObjetivo.Character:FindFirstChild("HumanoidRootPart")
-                    local raizPers = persAct and persAct:FindFirstChild("HumanoidRootPart")
-                    if raizAsesino and raizPers then
-                        local dirRayo = raizAsesino.Position - raizPers.Position
-                        local confRay = RaycastParams.new()
-                        confRay.FilterType=Enum.RaycastFilterType.Exclude
-                        confRay.FilterDescendantsInstances={persAct}
-                        local golpe = Workspace:Raycast(raizPers.Position,dirRayo,confRay)
-                        if not golpe or golpe.Instance.Parent==asesinoObjetivo.Character then
-                            if EquiparHerramienta("Gun") then
-                                local armaDisp = persAct:FindFirstChild("Gun")
-                                local cuchLocal = armaDisp and armaDisp:FindFirstChild("KnifeLocal")
-                                local hazRayo = cuchLocal and cuchLocal:FindFirstChild("CreateBeam")
-                                local remotoDisp = hazRayo and hazRayo:FindFirstChild("RemoteFunction")
-                                if remotoDisp and remotoDisp:IsA("RemoteFunction") then
-                                    local predDisp = ObtenerPosicionPredicha(asesinoObjetivo, shootOffset)
-                                    pcall(function() remotoDisp:InvokeServer(1,predDisp,"AH2") end)
-                                end
-                            end
-                        end
+    timerText=Instance.new("TextLabel")
+    timerText.Name="ChitukHub_TiempoRonda"
+    timerText.Parent=game:GetService("CoreGui")
+    timerText.BackgroundTransparency=1
+    timerText.TextColor3=Color3.new(1,1,1)
+    timerText.TextScaled=true
+    timerText.AnchorPoint=Vector2.new(0.5,0.5)
+    timerText.Position=UDim2.fromScale(0.5,0.15)
+    timerText.Size=UDim2.fromOffset(200,35)
+    timerText.Font=Enum.Font.Montserrat
+    timerTask=task.spawn(function()
+        while timerText do
+            task.wait(0.5)
+            local relojRonda=Workspace:FindFirstChild("RoundTimerPart")
+            if relojRonda then
+                local tiempoAct = relojRonda:GetAttribute("Time")
+                if type(tiempoAct)=="number" then
+                    if tiempoAct==-1 then timerText.Text="" else
+                        local minRonda=math.floor(tiempoAct/60)
+                        local segRonda=tiempoAct%60
+                        timerText.Text=string.format("%dm %ds",minRonda,segRonda)
                     end
                 end
             end
         end
     end)
 end
-local function DisparoRetrasado()
-    if EncontrarSheriff()~=LocalPlayer then Notify("No eres Sheriff"); return end
-    local objetivoDisp = EncontrarAsesino() or EncontrarSheriffNoYo()
-    if not objetivoDisp or not objetivoDisp.Character then Notify("Sin objetivo valido"); return end
-    if not EquiparHerramienta("Gun") then return end
-    local persDisp = LocalPlayer.Character
-    local raizDisp = persDisp and persDisp:FindFirstChild("HumanoidRootPart")
-    local raizObjDisp = objetivoDisp.Character:FindFirstChild("HumanoidRootPart")
-    if not raizDisp or not raizObjDisp then Notify("Ejes centrales invalidos"); return end
-    Notify("Esperando linea visual directa...")
-    local conexEsp
-    conexEsp=RunService.Stepped:Connect(function()
-        if not objetivoDisp.Parent or not objetivoDisp.Character or not raizObjDisp.Parent then conexEsp:Disconnect(); return end
-        local origenRay = raizDisp.Position
-        local direcRay = Vector3.new(raizObjDisp.Position.X, origenRay.Y, raizObjDisp.Position.Z)-origenRay
-        if direcRay.Magnitude<=0 then return end
-        local resultadoRay = Workspace:Raycast(origenRay, direcRay.Unit*1000)
-        if resultadoRay and resultadoRay.Instance==raizObjDisp then
-            local armaFinal = persDisp:FindFirstChild("Gun")
-            local cuchFinal = armaFinal and armaFinal:FindFirstChild("KnifeLocal")
-            local hazFinal = cuchFinal and cuchFinal:FindFirstChild("CreateBeam")
-            local remotoFinal = hazFinal and hazFinal:FindFirstChild("RemoteFunction")
-            if remotoFinal then
-                local predFinal = ObtenerPosicionPredicha(objetivoDisp, shootOffset)
-                pcall(function() remotoFinal:InvokeServer(1,predFinal,"AH2") end)
+
+local function EnviarRolesChat()
+    local canalesChat=TextChatService:WaitForChild("TextChannels"):GetChildren()
+    local asesinoChat=EncontrarAsesino()
+    local sheriffChat=EncontrarSheriff()
+    local nomAsesino=asesinoChat and asesinoChat.Name or "-"
+    local nomSheriff=sheriffChat and sheriffChat.Name or "-"
+    local mensajeChat=string.format("Asesino: %s | Sheriff: %s | Chituk Hub",nomAsesino,nomSheriff)
+    for _,canal in ipairs(canalesChat) do
+        if canal:IsA("TextChannel") and canal.Name~="RBXSystem" then pcall(function() canal:SendAsync(mensajeChat) end) end
+    end
+end
+
+local function AlternarAuraMuerte(valor)
+    if killAuraConnection then killAuraConnection:Disconnect(); killAuraConnection=nil end
+    if not valor then return end
+    killAuraConnection=RunService.Heartbeat:Connect(function()
+        if EncontrarAsesino()~=LocalPlayer then return end
+        local persAura=LocalPlayer.Character
+        local raizAura=persAura and persAura:FindFirstChild("HumanoidRootPart")
+        local armaAura=persAura and persAura:FindFirstChild("Knife")
+        local eventoAtaque=armaAura and armaAura:FindFirstChild("Stab")
+        if not raizAura or not eventoAtaque then return end
+        for _,jugAura in ipairs(Players:GetPlayers()) do
+            if jugAura~=LocalPlayer and jugAura.Character then
+                local raizJugAura=jugAura.Character:FindFirstChild("HumanoidRootPart")
+                if raizJugAura and (raizAura.Position - raizJugAura.Position).Magnitude <7 then
+                    raizJugAura.Anchored=true
+                    raizJugAura.CFrame=raizAura.CFrame + raizAura.CFrame.LookVector*2
+                    task.wait(0.1)
+                    if eventoAtaque:IsA("RemoteEvent") then eventoAtaque:FireServer("Slash") end
+                    break
+                end
             end
-            conexEsp:Disconnect()
         end
     end)
 end
+
+local function MatarMasCercano()
+    if EncontrarAsesino()~=LocalPlayer then Notify("Solo para Asesino"); return end
+    if not EquiparHerramienta("Knife") then return end
+    local victimaCerc=EncontrarJugadorCercano()
+    if not victimaCerc or not victimaCerc.Character then Notify("Sin victima cercana"); return end
+    local persCerc=LocalPlayer.Character
+    local raizCerc=persCerc and persCerc:FindFirstChild("HumanoidRootPart")
+    local raizVict=victimaCerc.Character:FindFirstChild("HumanoidRootPart")
+    local armaCerc=persCerc:FindFirstChild("Knife")
+    local eventoCerc=armaCerc and armaCerc:FindFirstChild("Stab")
+    if not raizCerc or not raizVict or not eventoCerc then Notify("Elementos ataque incompletos"); return end
+    raizVict.Anchored=true
+    raizVict.CFrame=raizCerc.CFrame + raizCerc.CFrame.LookVector*2
+    task.wait(0.1)
+    eventoCerc:FireServer("Slash")
+end
+
+local function ModoDios()
+    local camaraDios=Workspace.CurrentCamera
+    local persDios=LocalPlayer.Character
+    local humDios=persDios and persDios:FindFirstChildOfClass("Humanoid")
+    if not camaraDios or not persDios or not humDios then Notify("Personaje invalido"); return end
+    local posCamAnt=camaraDios.CFrame
+    local clonHum=humDios:Clone()
+    clonHum.Parent=persDios
+    LocalPlayer.Character=nil
+    humDios:Destroy()
+    LocalPlayer.Character=persDios
+    camaraDios.CameraSubject=clonHum
+    camaraDios.CFrame=posCamAnt
+    clonHum:SetStateEnabled(Enum.HumanoidStateType.Dead,false)
+    clonHum:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
+    clonHum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
+    clonHum.BreakJointsOnDeath=true
+    clonHum.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None
+    local animPers=persDios:FindFirstChild("Animate")
+    if animPers then animPers.Disabled=true; task.wait(); animPers.Disabled=false end
+    clonHum.Health=clonHum.MaxHealth
+end
+
+local function CopiarNombreAsesino()
+    local copAsesino=EncontrarAsesino()
+    if not copAsesino then Notify("No hay asesino"); return end
+    if setclipboard then setclipboard(copAsesino.Name); Notify("Nombre copiado: "..copAsesino.Name) else Notify("Portapapeles no disponible") end
+end
+
+local function CopiarNombreSheriff()
+    local copSheriff=EncontrarSheriff()
+    if not copSheriff then Notify("No hay sheriff"); return end
+    if setclipboard then setclipboard(copSheriff.Name); Notify("Nombre copiado: "..copSheriff.Name) else Notify("Portapapeles no disponible") end
+end
+
+local function BloquearCuchillos(valor) ignoreKnifeThrow=valor end
+
+local function CopiarAlPortapapeles(texto, nombre)
+    if setclipboard then
+        setclipboard(texto)
+        Notify(nombre .. " copiado")
+    else
+        Notify("Portapapeles no disponible")
+    end
+end
+
 local function AlternarMonedasAuto(valor)
     coinAutoCollect = valor
     if coinLoop then coinLoop:Disconnect(); coinLoop = nil end
@@ -725,154 +1500,13 @@ local function AlternarMonedasAuto(valor)
         end
     end)
 end
-local function AlternarTiempoRonda(valor)
-    if timerTask then task.cancel(timerTask); timerTask=nil end
-    if timerText then timerText:Destroy(); timerText=nil end
-    if not valor then return end
-    timerText=Instance.new("TextLabel")
-    timerText.Name="ChitukHub_TiempoRonda"
-    timerText.Parent=game:GetService("CoreGui")
-    timerText.BackgroundTransparency=1
-    timerText.TextColor3=Color3.new(1,1,1)
-    timerText.TextScaled=true
-    timerText.AnchorPoint=Vector2.new(0.5,0.5)
-    timerText.Position=UDim2.fromScale(0.5,0.15)
-    timerText.Size=UDim2.fromOffset(200,35)
-    timerText.Font=Enum.Font.Montserrat
-    timerTask=task.spawn(function()
-        while timerText do
-            task.wait(0.5)
-            local relojRonda=Workspace:FindFirstChild("RoundTimerPart")
-            if relojRonda then
-                local tiempoAct = relojRonda:GetAttribute("Time")
-                if type(tiempoAct)=="number" then
-                    if tiempoAct==-1 then timerText.Text="" else
-                        local minRonda=math.floor(tiempoAct/60)
-                        local segRonda=tiempoAct%60
-                        timerText.Text=string.format("%dm %ds",minRonda,segRonda)
-                    end
-                end
-            end
-        end
-    end)
-end
-local function EnviarRolesChat()
-    local canalesChat=TextChatService:WaitForChild("TextChannels"):GetChildren()
-    local asesinoChat=EncontrarAsesino()
-    local sheriffChat=EncontrarSheriff()
-    local nomAsesino=asesinoChat and asesinoChat.Name or "-"
-    local nomSheriff=sheriffChat and sheriffChat.Name or "-"
-    local mensajeChat=string.format("Asesino: %s | Sheriff: %s | Chituk Hub",nomAsesino,nomSheriff)
-    for _,canal in ipairs(canalesChat) do
-        if canal:IsA("TextChannel") and canal.Name~="RBXSystem" then pcall(function() canal:SendAsync(mensajeChat) end) end
-    end
-end
-local function AlternarAuraMuerte(valor)
-    if killAuraConnection then killAuraConnection:Disconnect(); killAuraConnection=nil end
-    if not valor then return end
-    killAuraConnection=RunService.Heartbeat:Connect(function()
-        if EncontrarAsesino()~=LocalPlayer then return end
-        local persAura=LocalPlayer.Character
-        local raizAura=persAura and persAura:FindFirstChild("HumanoidRootPart")
-        local armaAura=persAura and persAura:FindFirstChild("Knife")
-        local eventoAtaque=armaAura and armaAura:FindFirstChild("Stab")
-        if not raizAura or not eventoAtaque then return end
-        for _,jugAura in ipairs(Players:GetPlayers()) do
-            if jugAura~=LocalPlayer and jugAura.Character then
-                local raizJugAura=jugAura.Character:FindFirstChild("HumanoidRootPart")
-                if raizJugAura and (raizAura.Position - raizJugAura.Position).Magnitude <7 then
-                    raizJugAura.Anchored=true
-                    raizJugAura.CFrame=raizAura.CFrame + raizAura.CFrame.LookVector*2
-                    task.wait(0.1)
-                    if eventoAtaque:IsA("RemoteEvent") then eventoAtaque:FireServer("Slash") end
-                    break
-                end
-            end
-        end
-    end)
-end
-local function MatarMasCercano()
-    if EncontrarAsesino()~=LocalPlayer then Notify("Solo para Asesino"); return end
-    if not EquiparHerramienta("Knife") then return end
-    local victimaCerc=EncontrarJugadorCercano()
-    if not victimaCerc or not victimaCerc.Character then Notify("Sin victima cercana"); return end
-    local persCerc=LocalPlayer.Character
-    local raizCerc=persCerc and persCerc:FindFirstChild("HumanoidRootPart")
-    local raizVict=victimaCerc.Character:FindFirstChild("HumanoidRootPart")
-    local armaCerc=persCerc:FindFirstChild("Knife")
-    local eventoCerc=armaCerc and armaCerc:FindFirstChild("Stab")
-    if not raizCerc or not raizVict or not eventoCerc then Notify("Elementos ataque incompletos"); return end
-    raizVict.Anchored=true
-    raizVict.CFrame=raizCerc.CFrame + raizCerc.CFrame.LookVector*2
-    task.wait(0.1)
-    eventoCerc:FireServer("Slash")
-end
-local function MatarTodos()
-    if EncontrarAsesino()~=LocalPlayer then Notify("Solo para Asesino"); return end
-    if not EquiparHerramienta("Knife") then return end
-    local persTodos=LocalPlayer.Character
-    local raizTodos=persTodos and persTodos:FindFirstChild("HumanoidRootPart")
-    local armaTodos=persTodos:FindFirstChild("Knife")
-    local eventoTodos=armaTodos and armaTodos:FindFirstChild("Stab")
-    if not raizTodos or not eventoTodos then Notify("Estructura incompleta"); return end
-    for _,jugTodos in ipairs(Players:GetPlayers()) do
-        if jugTodos~=LocalPlayer and jugTodos.Character then
-            local raizJugTodos=jugTodos.Character:FindFirstChild("HumanoidRootPart")
-            if raizJugTodos then raizJugTodos.Anchored=true; raizJugTodos.CFrame=raizTodos.CFrame + raizTodos.CFrame.LookVector end
-        end
-    end
-    eventoTodos:FireServer("Slash")
-end
-local function ModoDios()
-    local camaraDios=Workspace.CurrentCamera
-    local persDios=LocalPlayer.Character
-    local humDios=persDios and persDios:FindFirstChildOfClass("Humanoid")
-    if not camaraDios or not persDios or not humDios then Notify("Personaje invalido"); return end
-    local posCamAnt=camaraDios.CFrame
-    local clonHum=humDios:Clone()
-    clonHum.Parent=persDios
-    LocalPlayer.Character=nil
-    humDios:Destroy()
-    LocalPlayer.Character=persDios
-    camaraDios.CameraSubject=clonHum
-    camaraDios.CFrame=posCamAnt
-    clonHum:SetStateEnabled(Enum.HumanoidStateType.Dead,false)
-    clonHum:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
-    clonHum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
-    clonHum.BreakJointsOnDeath=true
-    clonHum.DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None
-    local animPers=persDios:FindFirstChild("Animate")
-    if animPers then animPers.Disabled=true; task.wait(); animPers.Disabled=false end
-    clonHum.Health=clonHum.MaxHealth
-end
-local function CopiarNombreAsesino()
-    local copAsesino=EncontrarAsesino()
-    if not copAsesino then Notify("No hay asesino"); return end
-    if setclipboard then setclipboard(copAsesino.Name); Notify("Nombre copiado: "..copAsesino.Name) else Notify("Portapapeles no disponible") end
-end
-local function CopiarNombreSheriff()
-    local copSheriff=EncontrarSheriff()
-    if not copSheriff then Notify("No hay sheriff"); return end
-    if setclipboard then setclipboard(copSheriff.Name); Notify("Nombre copiado: "..copSheriff.Name) else Notify("Portapapeles no disponible") end
-end
-local function AutoRecogerArma(valor) autoGetDroppedGun=valor end
-local function BloquearCuchillos(valor) ignoreKnifeThrow=valor end
-
-local function CopiarAlPortapapeles(texto, nombre)
-    if setclipboard then
-        setclipboard(texto)
-        Notify(nombre .. " copiado")
-    else
-        Notify("Portapapeles no disponible")
-    end
-end
 
 MainTab:CreateSection("General y Movimiento")
 MainTab:CreateToggle({Name="Noclip (Traspasar paredes)", CurrentValue=false, Callback=ToggleNoclip})
 MainTab:CreateSlider({Name="Velocidad del Jugador", Range={16, 300}, Increment=1, Suffix=" u/s", CurrentValue=PlayerSpeed, Callback=SetPlayerSpeed})
 MainTab:CreateToggle({Name="Anti Fling", CurrentValue=false, Callback=AlternarAntiFling})
 MainTab:CreateToggle({Name="Reloj de Ronda", CurrentValue=false, Callback=AlternarTiempoRonda})
-MainTab:CreateToggle({Name="Recoger Arma Automaticamente", CurrentValue=false, Callback=AutoRecogerArma})
+MainTab:CreateToggle({Name="Invisibilidad", CurrentValue=false, Callback=ToggleInvisibilidad})
 MainTab:CreateToggle({Name="Bloquear Cuchillos (Limitado)", CurrentValue=false, Callback=BloquearCuchillos})
 MainTab:CreateButton({Name="Compartir Roles en Chat", Callback=EnviarRolesChat})
 MainTab:CreateButton({Name="Modo Dios (Inestable)", Callback=ModoDios})
@@ -887,9 +1521,12 @@ ESPTab:CreateToggle({Name="Ocultar mi Propio ESP", CurrentValue=false, Callback=
 ESPTab:CreateButton({Name="Actualizar / Refrescar ESP", Callback=RecargarESP})
 
 SheriffTab:CreateSection("Herramientas del Sheriff")
-SheriffTab:CreateButton({Name="Disparar al Asesino", Callback=DispararAsesino})
-SheriffTab:CreateButton({Name="Disparo con Retraso / Preciso", Callback=DisparoRetrasado})
-SheriffTab:CreateToggle({Name="Disparo Automatico", CurrentValue=false, Callback=AlternarDisparoAuto})
+SheriffTab:CreateButton({Name="Grab Gun", Callback=GrabGun})
+SheriffTab:CreateButton({Name="Grab Gun On Death", Callback=GrabGunOnDeath})
+SheriffTab:CreateToggle({Name="Aim Bot Murder", CurrentValue=false, Callback=ToggleAimBot})
+SheriffTab:CreateToggle({Name="Auto Grab Gun", CurrentValue=false, Callback=ToggleAutoGrabGun})
+SheriffTab:CreateToggle({Name="Auto Shoot Murderer", CurrentValue=false, Callback=ToggleAutoShootMurderer})
+SheriffTab:CreateToggle({Name="Auto Shoot Visible", CurrentValue=false, Callback=ToggleAutoShootVisible})
 SheriffTab:CreateToggle({Name="Muerte Inmediata al Disparar", CurrentValue=false, Callback=function(v) instakillshoot=v end})
 SheriffTab:CreateInput({
     Name="Desplazamiento / Prediccion de Disparo", CurrentValue="2.8", PlaceholderText="Ejemplo: 2.8",
@@ -927,7 +1564,11 @@ MurdererTab:CreateToggle({
 MurdererTab:CreateToggle({Name="Aparicion Cerca del Objetivo", CurrentValue=false, Callback=function(v) spawnAtPlayer=v end})
 MurdererTab:CreateButton({Name="Eliminar Jugador Proximo", Callback=MatarMasCercano})
 MurdererTab:CreateToggle({Name="Aura de Muerte", CurrentValue=false, Callback=AlternarAuraMuerte})
-MurdererTab:CreateButton({Name="Eliminar a Todos", Callback=MatarTodos})
+
+AnimacionesTab:CreateSection("Paquetes de Animacion")
+AnimacionesTab:CreateToggle({Name="Animacion Zombie", CurrentValue=false, Callback=ToggleZombie})
+AnimacionesTab:CreateToggle({Name="Animacion Ninja", CurrentValue=false, Callback=ToggleNinja})
+AnimacionesTab:CreateButton({Name="Restaurar Animaciones Default", Callback=ResetAnimaciones})
 
 TeleportTab:CreateSection("Teletransportes Rapidos")
 TeleportTab:CreateButton({Name="Ir al Vestibulo / Inicio", Callback=TeleportarVestibulo})
@@ -1019,19 +1660,6 @@ Workspace.DescendantAdded:Connect(function(desc)
     if gunDropESP and desc.Name=="GunDrop" then
         ESPContainer:Agregar(desc,{ColorResaltado=Color3.new(0.95,1,0.07),MostrarFlecha=true,DistanciaMinimaFlecha=999999,TextoEtiqueta="ARMA TIRADA",MostrarEtiqueta=true,NombreGrupo="armas"})
         Notify("Arma disponible")
-        if autoGetDroppedGun then
-            task.spawn(function()
-                task.wait(1)
-                local m=ObtenerMapa()
-                local gd=m and m:FindFirstChild("GunDrop")
-                local c=LocalPlayer.Character
-                if not gd or not c then return end
-                local ant=c:GetPivot()
-                c:MoveTo(gd.Position)
-                LocalPlayer.Backpack.ChildAdded:Wait()
-                if LocalPlayer.Character then LocalPlayer.Character:PivotTo(ant) end
-            end)
-        end
     end
 end)
 Workspace.DescendantRemoving:Connect(function(desc)
